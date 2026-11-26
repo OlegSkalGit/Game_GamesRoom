@@ -705,21 +705,50 @@ func _build_basement_vault() -> void:
 	r3.set_meta("interact_id", "relic_sapphire"); r3.set_meta("interact_title", "Оглянути Артефакт #3: Королівський Сапфір")
 	add_child(r3)
 
-	# --- QUEST BOARDS (Upstairs Lobby + Basement Exhibition Hall) ---
-	for qb_pos: Array in [[Vector3(-4.4, 0.06, 7.2), 0.35], [Vector3(4.2, -4.0, -6.4), -0.45]]:
-		var qp: Vector3 = qb_pos[0]
-		var qyaw: float = float(qb_pos[1])
-		var qroot := Node3D.new(); qroot.position = qp; qroot.rotation.y = qyaw; add_child(qroot)
-		_add_box_body(qroot, Vector3(0.10, 1.65, 0.10), Vector3(-0.62, 0.82, 0.0), dark_walnut, false)
-		_add_box_body(qroot, Vector3(0.10, 1.65, 0.10), Vector3(0.62, 0.82, 0.0), dark_walnut, false)
-		_add_box_body(qroot, Vector3(1.45, 1.05, 0.09), Vector3(0.0, 1.42, 0.0), bronze_mat, false)
-		_add_box_body(qroot, Vector3(1.30, 0.90, 0.11), Vector3(0.0, 1.42, 0.01), _mat(Color(0.10, 0.14, 0.18), 0.6), false)
-		var qlbl := Label3D.new()
-		qlbl.text = "📜 ДОШКА КВЕСТІВ\n[E] або [Q] — Відкрити"
-		qlbl.position = Vector3(0.0, 1.42, 0.08); qlbl.pixel_size = 0.0042; qlbl.font_size = 36; qlbl.modulate = Color(1.0, 0.90, 0.48)
-		qroot.add_child(qlbl)
-		var qsb := StaticBody3D.new(); qsb.collision_layer = 2; qsb.collision_mask = 0; qsb.position = Vector3(0.0, 1.2, 0.0)
-		var qcs := CollisionShape3D.new(); var qb_sh := BoxShape3D.new(); qb_sh.size = Vector3(1.6, 2.0, 0.6); qcs.shape = qb_sh; qsb.add_child(qcs)
+	# --- QUEST BOARDS (Upstairs Lobby facing Main Hall + Basement Exhibition Hall) ---
+	for qb_idx: int in range(2):
+		var qp: Vector3 = Vector3(-4.15, 0.0, 7.25) if qb_idx == 0 else Vector3(4.2, -4.0, -6.4)
+		var qyaw: float = (PI - 0.36) if qb_idx == 0 else -0.45
+		var qroot := Node3D.new()
+		qroot.name = "QuestBoardStand_%d" % qb_idx
+		qroot.position = qp
+		qroot.rotation.y = qyaw
+		add_child(qroot)
+		_add_box_body(qroot, Vector3(1.44, 0.07, 0.42), Vector3(0.0, 0.035, 0.0), dark_walnut, false)
+		_add_box_body(qroot, Vector3(1.48, 0.03, 0.46), Vector3(0.0, 0.08, 0.0), bronze_mat, false)
+		_add_box_body(qroot, Vector3(0.10, 1.50, 0.10), Vector3(-0.62, 0.82, 0.0), dark_walnut, false)
+		_add_box_body(qroot, Vector3(0.10, 1.50, 0.10), Vector3(0.62, 0.82, 0.0), dark_walnut, false)
+		# Brass bezel frame (z: -0.030 .. +0.030), solid walnut back (-0.052 .. -0.032), crisp display at z = +0.038 (zero coplanar Z-fighting)
+		_add_box_body(qroot, Vector3(1.52, 1.06, 0.06), Vector3(0.0, 1.44, 0.0), bronze_mat, false)
+		_add_box_body(qroot, Vector3(1.44, 0.98, 0.02), Vector3(0.0, 1.44, -0.042), dark_walnut, false)
+		var qvp := SubViewport.new()
+		qvp.size = Vector2i(760, 500)
+		qvp.render_target_update_mode = SubViewport.UPDATE_ONCE
+		var qdrawer := QuestBoardDrawer.new()
+		qdrawer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		qvp.add_child(qdrawer)
+		qroot.add_child(qvp)
+		var qquad := QuadMesh.new()
+		qquad.size = Vector2(1.38, 0.92)
+		var qmat := StandardMaterial3D.new()
+		qmat.albedo_texture = qvp.get_texture()
+		qmat.emission_enabled = true
+		qmat.emission_texture = qvp.get_texture()
+		qmat.emission_energy_multiplier = 0.45
+		qmat.roughness = 0.25
+		var qmi := MeshInstance3D.new()
+		qmi.mesh = qquad
+		qmi.material_override = qmat
+		qmi.position = Vector3(0.0, 1.44, 0.038)
+		qroot.add_child(qmi)
+		var qml := OmniLight3D.new()
+		qml.position = Vector3(0.0, 2.02, 0.28)
+		qml.light_color = Color(1.0, 0.90, 0.72)
+		qml.light_energy = 0.65
+		qml.omni_range = 2.4
+		qroot.add_child(qml)
+		var qsb := StaticBody3D.new(); qsb.collision_layer = 3; qsb.collision_mask = 0; qsb.position = Vector3(0.0, 1.15, 0.0)
+		var qcs := CollisionShape3D.new(); var qb_sh := BoxShape3D.new(); qb_sh.size = Vector3(1.55, 2.0, 0.55); qcs.shape = qb_sh; qsb.add_child(qcs)
 		qsb.set_meta("interact_id", "quest_board"); qsb.set_meta("interact_title", "Відкрити Журнал Квестів")
 		qroot.add_child(qsb)
 
@@ -2064,6 +2093,7 @@ func get_games_map_text() -> String:
 		+ "  • Пітон, Гекса, Сокобан, П'ятнашки, Хрестики-Нулики,\n"
 		+ "    Теніс (Pong), Меморі, Кодовий замок, Бики та Корови, Балда\n\n"
 		+ "ДВІР НА ПІВДЕНЬ ЗА ВИХОДОМ:\n"
+		+ "  • Чортове колесо на пагорбі зліва (можна залізти, повний оберт за 1 хв)\n"
 		+ "  • Перегоновий спорткар (трек з 4 петлями і 4 AI-суперниками), Озера з рибками, Бінокль [E], Вівтар погоди"
 	)
 
@@ -2121,10 +2151,10 @@ class GamesMapDrawer extends Control:
 				"col": Color(0.98, 0.54, 0.32),
 				"title": "НАВІГАЦІЯ ТА ДВІР НАЗОВНІ",
 				"lines": [
+					"• Зліва на пагорбі -> Чортове колесо (вхід, 1хв)",
 					"• Двері півдня -> Озера з рибками, ліс",
 					"• Справа надворі -> Болід та 4-петльовий трек",
-					"• Біля озера -> Оглядовий бінокль [E]",
-					"• Вівтар погоди -> Зміна дощу/снігу/шторму",
+					"• Біля озера/мансарди -> Бінокль, Вівтар погоди",
 					"• Журнал квестів та артефактів -> [Q]"
 				]
 			}
@@ -2257,3 +2287,32 @@ class RouletteWheelDrawer extends Control:
 		draw_arc(c, inner_r, 0.0, TAU, 64, Color(0.88, 0.72, 0.28), 3.0)
 		draw_arc(c, rim_r, 0.0, TAU, 64, Color(0.88, 0.72, 0.28), 3.0)
 		draw_circle(c, inner_r * 0.72, Color(0.56, 0.42, 0.18))
+
+
+class QuestBoardDrawer extends Control:
+	func _draw() -> void:
+		var f := ThemeDB.fallback_font
+		draw_rect(Rect2(Vector2.ZERO, size), Color(0.05, 0.07, 0.10))
+		draw_rect(Rect2(8, 8, size.x - 16, size.y - 16), Color(0.86, 0.70, 0.28), false, 3.0)
+		draw_rect(Rect2(12, 12, size.x - 24, 52), Color(0.10, 0.15, 0.20))
+		draw_string(f, Vector2(20, 44), "ДОШКА КВЕСТІВ КАЗИНО (6 ЗАВДАНЬ)", HORIZONTAL_ALIGNMENT_CENTER, size.x - 40, 22, Color(1.0, 0.88, 0.40))
+
+		var rows := [
+			["1. Таємниці Підземелля", "Відвідайте залу, льох та сховище", "+150"],
+			["2. Мисливець за Реліквіями", "Кубок, Винна Амфора і Сапфір", "+250"],
+			["3. Поціновувач Новинок", "Зіграйте у 2048, Зуму та Пазли", "+200"],
+			["4. Сейф і ВІП-Диско", "Сейф у сховищі + ВІП-диско", "+150"],
+			["5. Король Гірської Траси", "Мертва петля + Стрибок", "+300"],
+			["6. Спостерігач Долини", "Бінокль + Погода + Гриб-батут", "+200"]
+		]
+		var y := 86.0
+		for row in rows:
+			draw_rect(Rect2(24, y - 22, size.x - 48, 52), Color(0.08, 0.11, 0.15))
+			draw_rect(Rect2(24, y - 22, size.x - 48, 52), Color(0.28, 0.34, 0.42), false, 1.5)
+			draw_string(f, Vector2(36, y + 2), str(row[0]), HORIZONTAL_ALIGNMENT_LEFT, 360, 16, Color(0.98, 0.88, 0.46))
+			draw_string(f, Vector2(36, y + 22), str(row[1]), HORIZONTAL_ALIGNMENT_LEFT, 540, 14, Color(0.84, 0.88, 0.90))
+			draw_string(f, Vector2(size.x - 140, y + 12), "%s ф." % str(row[2]), HORIZONTAL_ALIGNMENT_RIGHT, 100, 16, Color(0.32, 0.92, 0.56))
+			y += 58.0
+
+		draw_rect(Rect2(12, size.y - 46, size.x - 24, 34), Color(0.11, 0.16, 0.14))
+		draw_string(f, Vector2(20, size.y - 23), "Натисніть [E] на стенді або [Q] будь-де — відкрити Журнал квестів", HORIZONTAL_ALIGNMENT_CENTER, size.x - 40, 14, Color(0.80, 0.94, 0.82))

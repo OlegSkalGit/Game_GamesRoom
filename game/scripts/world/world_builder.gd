@@ -2,9 +2,12 @@ class_name WorldBuilder
 extends Node3D
 
 const RaceTrackScript := preload("res://scripts/world/race_track.gd")
+const FerrisWheelScript := preload("res://scripts/world/ferris_wheel.gd")
 
 const WATER_LEVEL := 1.6
 const TERRAIN_HALF := 256.0
+const FERRIS_POS := Vector2(-56.0, 32.0)
+const FERRIS_HILL_H := 14.5
 
 var sky3d: Sky3D
 var terrain: Terrain3D
@@ -12,6 +15,7 @@ var weather: WeatherController
 var wildlife: WildlifeController
 var casino_room: CasinoRoom
 var race_track
+var ferris_wheel
 var _reflection_probe: ReflectionProbe
 
 var _noise_hills: FastNoiseLite
@@ -50,6 +54,12 @@ func build_world(player: Node3D) -> void:
 	_build_cosmo_forest()
 	_build_simple_grass_and_plants(player)
 	_build_outdoor_gadgets()
+
+	ferris_wheel = FerrisWheelScript.new()
+	ferris_wheel.name = "FerrisWheel"
+	ferris_wheel.position = Vector3(FERRIS_POS.x, sample_height(FERRIS_POS.x, FERRIS_POS.y), FERRIS_POS.y)
+	ferris_wheel.rotation.y = 0.58
+	add_child(ferris_wheel)
 
 	casino_room = CasinoRoom.new()
 	casino_room.name = "CasinoRoom"
@@ -107,6 +117,15 @@ static func east_trail_pos(u: float) -> Vector2:
 	return p
 
 
+static func ferris_trail_pos(u: float) -> Vector2:
+	# Winding path climbing West hill from Courtyard (-14, 22) straight to Ferris Wheel stairs (-52.9, 36.7)
+	var su := u * u * (3.0 - 2.0 * u)
+	var dest := FERRIS_POS + Vector2(sin(0.58), cos(0.58)) * 5.6
+	var p := Vector2(-14.0, 22.0).lerp(dest, su)
+	p.y += sin(u * PI) * 3.5
+	return p
+
+
 static func estimate_mountain_base(x: float, z: float) -> float:
 	var dist := Vector2(x, z).length()
 	var rim := clampf((dist - 120.0) / 110.0, 0.0, 1.0)
@@ -133,6 +152,8 @@ func _is_near_road_or_track(x: float, z: float, margin: float = 4.5) -> bool:
 	if z >= 11.0 and z <= 70.0 and absf(x - cobble_road_x(z)) < margin:
 		return true
 	if Vector2(x + 16.0, z - 68.0).length() < 16.0 + margin:
+		return true
+	if Vector2(x - FERRIS_POS.x, z - FERRIS_POS.y).length() < 15.5 + margin:
 		return true
 	if not _track_spatial.is_empty():
 		var cx := int(floor(x / 16.0))
@@ -223,6 +244,10 @@ func _sample_procedural_height(x: float, z: float) -> float:
 	# Dramatic North Mountain Gorge chasm beneath the Track Canyon Jump (56, -146)
 	var d_gorge := Vector2(x - 56.0, z + 146.0).length()
 	h = lerpf(h, 3.2, smoothstep_inv(10.0, 22.0, d_gorge) * 0.90)
+
+	# Scenic West Hill to the left of Casino for the climbable Ferris Wheel (-56, 32)
+	var d_ferris := Vector2(x - FERRIS_POS.x, z - FERRIS_POS.y).length()
+	h = lerpf(h, FERRIS_HILL_H, smoothstep_inv(8.0, 26.0, d_ferris))
 
 	return h
 
@@ -930,7 +955,7 @@ func _build_cobblestone_and_trails() -> void:
 	var stone_tfs: Array[Transform3D] = []
 	for ti: int in range(26):
 		var u := float(ti) / 25.0
-		for p2: Vector2 in [mirror_trail_pos(u), east_trail_pos(u)]:
+		for p2: Vector2 in [mirror_trail_pos(u), east_trail_pos(u), ferris_trail_pos(u)]:
 			var jx := p2.x + rng.randf_range(-0.35, 0.35)
 			var jz := p2.y + rng.randf_range(-0.35, 0.35)
 			var hy := sample_height(jx, jz)

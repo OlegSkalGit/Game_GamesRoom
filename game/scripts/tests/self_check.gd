@@ -43,9 +43,6 @@ func _run_checks() -> void:
 	ConfigManager.apply_preset(3)
 	if not _check(int(ConfigManager.graphics["antialiasing"]) >= 3, "High preset must use sharp MSAA (>=3), not blurry TAA"): return
 	if not _check(FileAccess.file_exists(cfg_path), "config.cfg was not saved to game/ root"): return
-	ConfigManager.graphics = prev_cfg_gfx
-	ConfigManager.apply_graphics()
-	ConfigManager.save_config()
 	print("[PASS] ConfigManager presets & game/config.cfg")
 
 	# 2. Load Main scene cleanly
@@ -350,6 +347,11 @@ func _run_checks() -> void:
 	# 7. Exit-Left Games Directory Map, Animated 3-Reel Slots, & 3D Roulette Checks
 	var gm := world.casino_room.get_node_or_null("GamesMapStand") as Node3D
 	if not _check(gm != null and gm.position.x > 3.0 and gm.position.z > 7.0, "GamesMapStand missing at exit-left (+X, +Z)"): return
+	var qb0 := world.casino_room.get_node_or_null("QuestBoardStand_0") as Node3D
+	if not _check(qb0 != null and absf(qb0.rotation.y - (PI - 0.36)) < 0.05, "Lobby QuestBoard must face North-East into Casino Hall"): return
+	main._toggle_quest_journal()
+	if not _check(main._quest_journal_panel.visible and main._quest_journal_lbl.text.contains("Підземелля"), "Quest journal modal failed to open with quests"): return
+	main._toggle_quest_journal()
 	main._toggle_games_map()
 	if not _check(main._games_map_panel.visible and main._games_map_lbl.text.contains("34"), "Games map modal toggle/text failed"): return
 	main._toggle_games_map()
@@ -389,7 +391,34 @@ func _run_checks() -> void:
 	main._roulette_ui.close_overlay()
 	print("[PASS] Exit-Left 34-Game Map, 3-Reel Animated Slots, & Full 3D Roulette")
 
+	# 8. Climbable 1-RPM Ferris Wheel on West Hill
+	var fw = world.ferris_wheel
+	if not _check(fw != null and fw.position.x < -40.0 and fw.position.y >= 14.0 and fw._cabins.size() == 12, "FerrisWheel missing or not placed on West hill"): return
+	var start_ang: float = fw._angle
+	for _ft in range(15):
+		fw._physics_process(1.0)
+	var d_ang := wrapf(fw._angle - start_ang, -PI, PI)
+	if not _check(absf(d_ang - PI * 0.5) < 0.02, "FerrisWheel angular speed mismatch (expected 90 deg in 15s, got %.3f rad)" % d_ang): return
+	var cab0: AnimatableBody3D = fw._cabins[0]["body"]
+	player.set_controls_active(true)
+	player.velocity = Vector3.ZERO
+	player.global_position = cab0.global_position + Vector3(0.0, 0.04, 0.0)
+	var start_c_pos := cab0.global_position
+	var start_p_pos := player.global_position
+	for _fp in range(45):
+		await get_tree().physics_frame
+	var carried := (player.global_position - start_p_pos).length()
+	var cab_moved := (cab0.global_position - start_c_pos).length()
+	var y_off := absf(player.global_position.y - cab0.global_position.y)
+	player.set_controls_active(false)
+	player.reset_to_casino_spawn()
+	if not _check(y_off < 0.35 and carried > 0.35, "Player failed to ride moving FerrisWheel cabin cleanly (carried=%.2f cab_moved=%.2f y_off=%.2f on_floor=%s p_y=%.2f c_y=%.2f)" % [carried, cab_moved, y_off, str(player.is_on_floor()), player.global_position.y, cab0.global_position.y]): return
+	print("[PASS] Climbable 1-RPM Ferris Wheel on West Hill")
+
 	main.queue_free()
 	await get_tree().process_frame
+	ConfigManager.graphics = prev_cfg_gfx
+	ConfigManager.apply_graphics()
+	ConfigManager.save_config()
 	print("=== ALL SELF CHECKS PASSED ===")
 	get_tree().quit(0)

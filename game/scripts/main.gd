@@ -190,10 +190,10 @@ func _build_hud() -> void:
 	# Toggleable [Q] Quest Journal Overlay
 	_quest_journal_panel = PanelContainer.new()
 	_quest_journal_panel.set_anchors_preset(Control.PRESET_CENTER)
-	_quest_journal_panel.offset_left = -300
-	_quest_journal_panel.offset_right = 300
-	_quest_journal_panel.offset_top = -225
-	_quest_journal_panel.offset_bottom = 225
+	_quest_journal_panel.offset_left = -330
+	_quest_journal_panel.offset_right = 330
+	_quest_journal_panel.offset_top = -265
+	_quest_journal_panel.offset_bottom = 265
 	var jsb := StyleBoxFlat.new()
 	jsb.bg_color = Color(0.05, 0.06, 0.08, 0.95)
 	jsb.border_color = Color(0.92, 0.76, 0.28)
@@ -526,6 +526,11 @@ func _input(event: InputEvent) -> void:
 			if k.physical_keycode == KEY_ESCAPE or k.physical_keycode == KEY_E or k.physical_keycode == KEY_TAB:
 				get_viewport().set_input_as_handled()
 				_toggle_games_map()
+				return
+		if k.pressed and not k.echo and _quest_journal_panel and _quest_journal_panel.visible:
+			if k.physical_keycode == KEY_ESCAPE or k.physical_keycode == KEY_Q or k.physical_keycode == KEY_E:
+				get_viewport().set_input_as_handled()
+				_toggle_quest_journal()
 				return
 		if k.pressed and not k.echo and k.physical_keycode == KEY_Q:
 			if _minigame_host.is_active() or _transitioning or (_menu and _menu.visible):
