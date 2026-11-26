@@ -3,6 +3,7 @@ extends Node3D
 const RaceCarScript := preload("res://scripts/player/race_car.gd")
 const QuestMgrScript := preload("res://scripts/autoload/quest_manager.gd")
 const IntroSplashScript := preload("res://scripts/ui/intro_splash.gd")
+const RouletteOverlayScript := preload("res://scripts/ui/roulette_overlay.gd")
 
 var _world: WorldBuilder
 var _player: PlayerController
@@ -41,6 +42,12 @@ var _is_driving: bool = false
 var _transitioning: bool = false
 var _saved_cam_tf: Transform3D
 var _active_painting_id: String = ""
+var _games_map_panel: PanelContainer
+var _games_map_lbl: Label
+var _roulette_ui
+var _roulette_cam: Camera3D
+var _in_roulette: bool = false
+var _active_roulette_bets: Dictionary = {}
 
 
 func _ready() -> void:
@@ -84,6 +91,23 @@ func _ready() -> void:
 	_build_hud()
 	_build_binoculars()
 	_refresh_quest_ui()
+
+	if _world and _world.casino_room:
+		_world.casino_room.slot_payout.connect(_on_slot_payout)
+		_world.casino_room.roulette_spin_finished.connect(_on_roulette_spin_finished)
+
+	_roulette_ui = RouletteOverlayScript.new()
+	_roulette_ui.name = "RouletteOverlay"
+	add_child(_roulette_ui)
+	_roulette_ui.bet_placed.connect(_on_roulette_bet_placed)
+	_roulette_ui.spin_requested.connect(_on_roulette_spin_requested)
+	_roulette_ui.exit_requested.connect(_exit_roulette_game)
+
+	_roulette_cam = Camera3D.new()
+	_roulette_cam.name = "RouletteCamera"
+	_roulette_cam.fov = 52.0
+	_roulette_cam.current = false
+	add_child(_roulette_cam)
 
 	_minigame_host = MinigameHost.new()
 	_minigame_host.name = "MinigameHost"
@@ -211,6 +235,38 @@ func _build_hud() -> void:
 	jhint.add_theme_font_size_override("font_size", 13)
 	jhint.add_theme_color_override("font_color", Color(0.75, 0.82, 0.76))
 	jv.add_child(jhint)
+
+	# Interactive Games Directory Map Overlay
+	_games_map_panel = PanelContainer.new()
+	_games_map_panel.set_anchors_preset(Control.PRESET_CENTER)
+	_games_map_panel.offset_left = -360
+	_games_map_panel.offset_right = 360
+	_games_map_panel.offset_top = -255
+	_games_map_panel.offset_bottom = 255
+	_games_map_panel.add_theme_stylebox_override("panel", jsb)
+	_games_map_panel.visible = false
+	_hud_layer.add_child(_games_map_panel)
+	var mv := VBoxContainer.new()
+	mv.add_theme_constant_override("separation", 10)
+	_games_map_panel.add_child(mv)
+	var mtitle := Label.new()
+	mtitle.text = "🗺 ПЛАН ТА КАРТА ІГОР КАЗИНО (34 ГРИ)"
+	mtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	mtitle.add_theme_font_size_override("font_size", 21)
+	mtitle.add_theme_color_override("font_color", Color(0.98, 0.86, 0.36))
+	mv.add_child(mtitle)
+	_games_map_lbl = Label.new()
+	_games_map_lbl.add_theme_font_size_override("font_size", 14)
+	_games_map_lbl.add_theme_color_override("font_color", Color(0.92, 0.94, 0.90))
+	_games_map_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_games_map_lbl.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	mv.add_child(_games_map_lbl)
+	var mhint := Label.new()
+	mhint.text = "Стенд розташовано зліва біля південного виходу  |  Натисніть [E] або [Esc], щоб закрити"
+	mhint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	mhint.add_theme_font_size_override("font_size", 13)
+	mhint.add_theme_color_override("font_color", Color(0.75, 0.84, 0.78))
+	mv.add_child(mhint)
 
 	# Bottom Racing HUD bar
 	_race_hud_lbl = Label.new()
@@ -363,6 +419,17 @@ func _toggle_quest_journal() -> void:
 	AudioSfx.play_switch()
 
 
+func _toggle_games_map() -> void:
+	if _games_map_panel == null:
+		return
+	if _games_map_lbl and _world and _world.casino_room:
+		_games_map_lbl.text = _world.casino_room.get_games_map_text()
+	_games_map_panel.visible = not _games_map_panel.visible
+	if _quests and _games_map_panel.visible:
+		_quests.record_any("games_map")
+	AudioSfx.play_switch()
+
+
 func _show_toast(msg: String) -> void:
 	if _toast_lbl and _toast_panel:
 		_toast_lbl.text = msg
@@ -457,8 +524,20 @@ func _input(event: InputEvent) -> void:
 					_bino_zoom = clampf(_bino_zoom - 1.5, 2.0, 14.0); _bino_ctrl.queue_redraw()
 		return
 
+	if _in_roulette:
+		if not _transitioning and _roulette_ui and event is InputEventKey:
+			var rk := event as InputEventKey
+			if rk.pressed and not rk.echo and _roulette_ui.handle_key(rk.physical_keycode):
+				get_viewport().set_input_as_handled()
+		return
+
 	if event is InputEventKey:
 		var k := event as InputEventKey
+		if k.pressed and not k.echo and _games_map_panel and _games_map_panel.visible:
+			if k.physical_keycode == KEY_ESCAPE or k.physical_keycode == KEY_E or k.physical_keycode == KEY_TAB:
+				get_viewport().set_input_as_handled()
+				_toggle_games_map()
+				return
 		if k.pressed and not k.echo and k.physical_keycode == KEY_Q:
 			if _minigame_host.is_active() or _transitioning or (_menu and _menu.visible):
 				return
@@ -488,6 +567,7 @@ func _pause_to_menu() -> void:
 	_status_lbl.visible = false
 	if _quest_hud_panel: _quest_hud_panel.visible = false
 	if _quest_journal_panel: _quest_journal_panel.visible = false
+	if _games_map_panel: _games_map_panel.visible = false
 	_menu.open_menu()
 
 
@@ -558,6 +638,8 @@ func _exit_binoculars() -> void:
 	_player.set_controls_active(true)
 	_crosshair.visible = true
 	_status_lbl.visible = true
+	if _quest_hud_panel:
+		_quest_hud_panel.visible = true
 	AudioSfx.play_switch()
 
 
@@ -641,9 +723,10 @@ func _on_interact_prop_requested(prop_id: String) -> void:
 		"slot_right":
 			if _world and _world.casino_room:
 				_show_toast(_world.casino_room.trigger_slot(1))
+		"games_map":
+			_toggle_games_map()
 		"roulette_spin":
-			if _world and _world.casino_room:
-				_show_toast(_world.casino_room.trigger_roulette())
+			_enter_roulette_game()
 		"disco_button":
 			if _world and _world.casino_room:
 				var on := _world.casino_room.toggle_disco()
@@ -753,3 +836,131 @@ func _on_minigame_exit_requested() -> void:
 	_player.set_controls_active(true)
 	_crosshair.visible = true
 	_status_lbl.visible = true
+	if _quest_hud_panel:
+		_quest_hud_panel.visible = true
+
+
+func _on_slot_payout(chips_won: int, msg: String) -> void:
+	if _quests:
+		_quests.record_any("slot_left")
+		if chips_won > 0:
+			_quests.add_chips(chips_won)
+	_show_toast(msg)
+
+
+func _enter_roulette_game() -> void:
+	if _transitioning or _in_roulette or _minigame_host.is_active() or _in_binoculars or _is_driving:
+		return
+	if _world == null or _world.casino_room == null:
+		return
+	var table := _world.casino_room.get_roulette_table()
+	if table == null:
+		return
+	_transitioning = true
+	_player.set_controls_active(false)
+	_crosshair.visible = false
+	_prompt_panel.visible = false
+	_status_lbl.visible = false
+	if _quest_hud_panel:
+		_quest_hud_panel.visible = false
+	if _games_map_panel:
+		_games_map_panel.visible = false
+	if _quests:
+		_quests.record_any("roulette_spin")
+		if int(_quests.chips) < 50:
+			var bonus: int = 200 - int(_quests.chips)
+			_quests.add_chips(bonus)
+			_show_toast("🎁 Вітальний стек казино: +%d фішок для 3D-рулетки!" % bonus)
+
+	var p_cam := _player.get_camera()
+	var table_center := table.global_position
+	var view_pos := table_center + Vector3(0.0, 2.35, 2.25)
+	var look_basis := Transform3D(Basis.IDENTITY, view_pos).looking_at(table_center + Vector3(0.0, 1.08, -0.06), Vector3.UP).basis
+	var target_tf := Transform3D(look_basis, view_pos)
+
+	_roulette_cam.global_transform = p_cam.global_transform
+	_roulette_cam.fov = p_cam.fov
+	_roulette_cam.current = true
+	AudioSfx.play_switch()
+
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.set_trans(Tween.TRANS_CUBIC)
+	tw.set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(_roulette_cam, "global_transform", target_tf, 0.45)
+	tw.tween_property(_roulette_cam, "fov", 52.0, 0.45)
+	await tw.finished
+
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_in_roulette = true
+	_transitioning = false
+	_active_roulette_bets.clear()
+	_world.casino_room.update_roulette_chips({})
+	if _roulette_ui:
+		_roulette_ui.open(_quests.chips if _quests else 200)
+
+
+func _on_roulette_bet_placed(_total_bet: int) -> void:
+	if _world and _world.casino_room and _roulette_ui:
+		_world.casino_room.update_roulette_chips(_roulette_ui._bets)
+
+
+func _on_roulette_spin_requested(bets: Dictionary) -> void:
+	if _world == null or _world.casino_room == null:
+		return
+	var staked := 0
+	for k in bets.keys():
+		staked += int(bets[k])
+	if staked <= 0:
+		return
+	if _quests:
+		_quests.add_chips(-staked)
+	_active_roulette_bets = bets.duplicate()
+	_world.casino_room.update_roulette_chips(_active_roulette_bets)
+	_world.casino_room.start_roulette_spin()
+
+
+func _on_roulette_spin_finished(win_num: int) -> void:
+	var won: int = RouletteOverlayScript.compute_payout(_active_roulette_bets, win_num)
+	if won > 0 and _quests:
+		_quests.add_chips(won)
+	if won >= 250:
+		AudioSfx.play_fanfare()
+	elif won > 0:
+		AudioSfx.play_coin()
+	else:
+		AudioSfx.play_brick_bump()
+	if _world and _world.casino_room:
+		_world.casino_room.update_roulette_chips({})
+	if _roulette_ui and _in_roulette:
+		_roulette_ui.on_spin_result(win_num, won, _quests.chips if _quests else 0)
+	_active_roulette_bets.clear()
+	if won > 0:
+		_show_toast("🎡 %s — Виграш +%d фішок!" % [RouletteOverlayScript.pocket_color_tag(win_num), won])
+
+
+func _exit_roulette_game() -> void:
+	if _transitioning or not _in_roulette:
+		return
+	if _world and _world.casino_room and _world.casino_room.is_roulette_spinning():
+		return
+	_transitioning = true
+	if _roulette_ui:
+		_roulette_ui.close_overlay()
+	AudioSfx.play_switch()
+	var p_cam := _player.get_camera()
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.set_trans(Tween.TRANS_CUBIC)
+	tw.set_ease(Tween.EASE_OUT)
+	tw.tween_property(_roulette_cam, "global_transform", p_cam.global_transform, 0.35)
+	tw.tween_property(_roulette_cam, "fov", 74.0, 0.35)
+	await tw.finished
+	p_cam.current = true
+	_in_roulette = false
+	_transitioning = false
+	_player.set_controls_active(true)
+	_crosshair.visible = true
+	_status_lbl.visible = true
+	if _quest_hud_panel:
+		_quest_hud_panel.visible = true

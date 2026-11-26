@@ -1,6 +1,15 @@
 class_name CasinoRoom
 extends Node3D
 
+signal slot_payout(chips_won: int, msg: String)
+signal roulette_spin_finished(win_num: int)
+
+const EURO_WHEEL: Array[int] = [
+	0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10,
+	5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
+]
+const RED_NUMS: Array[int] = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]
+
 # 34 completely unique games across Casino, Underground Complex & Mansard Gallery:
 # Main Hall (7), West Strategy Lounge (5), East Arcade Landing (1),
 # Basement Card Club (3), Basement Exhibition Hall Tripods (6), Wine Cellar & Vault Tripods (2), Mansard Gallery Tripods (10)
@@ -54,10 +63,21 @@ const PAINTING_SPECS: Array[Dictionary] = [
 ]
 
 var paintings: Array[Dictionary] = []
+var _roulette_table: Node3D
 var _roulette_wheel: Node3D
+var _roulette_ball: MeshInstance3D
+var _roulette_chips_root: Node3D
 var _roulette_boost: float = 0.0
+var _roulette_spinning: bool = false
+var _roulette_spin_t: float = 0.0
+var _roulette_spin_dur: float = 4.2
+var _roulette_target_idx: int = 0
+var _roulette_target_num: int = 0
+var _roulette_last_tick_step: int = -1
+var _roulette_last_tick_t: float = -1.0
 var _slot_levers: Array[Node3D] = []
 var _slot_pulls: Array[float] = [0.0, 0.0]
+var _slot_states: Array[Dictionary] = []
 var _disco_mode: bool = false
 var _disco_lights: Array[OmniLight3D] = []
 var _arch_shadow_lights: Array[OmniLight3D] = []
@@ -77,6 +97,7 @@ func _ready() -> void:
 	_build_mansard()
 	_build_casino_centerpiece()
 	_build_casino_luxury_props()
+	_build_games_map_stand()
 	_build_chandeliers()
 	_build_all_paintings()
 	_build_roof_searchlights()
@@ -306,7 +327,7 @@ func _build_structure() -> void:
 	_add_box_body(self, Vector3(6.95, 0.10, 0.42), Vector3(0.0, 5.98, 9.45), marquee_glow, false)
 	_add_box_body(self, Vector3(6.95, 0.10, 0.42), Vector3(0.0, 4.92, 9.45), marquee_glow, false)
 	var sign_lbl := Label3D.new()
-	sign_lbl.text = "★ КАЗИНО • 24 ІГРИ ★"
+	sign_lbl.text = "★ КАЗИНО • 34 ІГРИ ★"
 	sign_lbl.position = Vector3(0.0, 5.45, 9.66)
 	sign_lbl.pixel_size = 0.0085
 	sign_lbl.font_size = 56
@@ -912,13 +933,12 @@ func _build_casino_centerpiece() -> void:
 	table_root.name = "CasinoRouletteTable"
 	table_root.position = Vector3(0.0, 0.0, 0.2)
 	add_child(table_root)
+	_roulette_table = table_root
 
 	var walnut_mat := _pbr_mat("american_walnut_veneer", Color(0.54, 0.40, 0.30), Vector3(2.0, 2.0, 1.0), 0.36, 0.05)
 	var leather_mat := _pbr_mat("fabric_leather_02", Color(0.34, 0.14, 0.11), Vector3(6.0, 2.0, 1.0), 0.52)
 	var baize_mat := _textile_mat(null, Color(0.06, 0.24, 0.13), Vector3(5.0, 5.0, 1.0), 0.90)
 	var bronze_mat := _mat(Color(0.56, 0.43, 0.20), 0.30, 0.88)
-	var red_pocket := _mat(Color(0.58, 0.08, 0.09), 0.45)
-	var blk_pocket := _mat(Color(0.06, 0.06, 0.07), 0.45)
 	var gold_line := _mat(Color(0.70, 0.56, 0.24), 0.35, 0.70)
 
 	var ped := CylinderMesh.new(); ped.top_radius = 0.52; ped.bottom_radius = 0.84; ped.height = 0.86
@@ -954,14 +974,46 @@ func _build_casino_centerpiece() -> void:
 	var disk_mi := MeshInstance3D.new(); disk_mi.mesh = disk; disk_mi.material_override = bronze_mat
 	_roulette_wheel.add_child(disk_mi)
 
-	for p_idx in range(18):
-		var pa := float(p_idx) * TAU / 18.0
-		var pocket := BoxMesh.new(); pocket.size = Vector3(0.075, 0.025, 0.14)
-		var pmi := MeshInstance3D.new(); pmi.mesh = pocket
-		pmi.material_override = red_pocket if p_idx % 2 == 0 else blk_pocket
-		pmi.position = Vector3(cos(pa) * 0.43, 0.028, sin(pa) * 0.43)
-		pmi.rotation.y = -pa
-		_roulette_wheel.add_child(pmi)
+	var dial_vp := SubViewport.new()
+	dial_vp.size = Vector2i(512, 512)
+	dial_vp.transparent_bg = true
+	dial_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	var dial_drawer := RouletteWheelDrawer.new()
+	dial_drawer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dial_vp.add_child(dial_drawer)
+	_roulette_wheel.add_child(dial_vp)
+
+	var dial_quad := QuadMesh.new()
+	dial_quad.size = Vector2(1.10, 1.10)
+	var dial_mat := StandardMaterial3D.new()
+	dial_mat.albedo_texture = dial_vp.get_texture()
+	dial_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+	dial_mat.alpha_scissor_threshold = 0.45
+	dial_mat.roughness = 0.35
+	dial_mat.metallic = 0.15
+	dial_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var dial_mi := MeshInstance3D.new()
+	dial_mi.mesh = dial_quad
+	dial_mi.material_override = dial_mat
+	dial_mi.position = Vector3(0, 0.022, 0)
+	dial_mi.rotation_degrees.x = -90.0
+	_roulette_wheel.add_child(dial_mi)
+
+	var fret_mesh := BoxMesh.new(); fret_mesh.size = Vector3(0.145, 0.016, 0.005)
+	for p_idx in range(37):
+		var fa := (float(p_idx) - 0.5) * TAU / 37.0
+		var fmi := MeshInstance3D.new(); fmi.mesh = fret_mesh; fmi.material_override = bronze_mat
+		fmi.position = Vector3(cos(fa) * 0.43, 0.027, sin(fa) * 0.43)
+		fmi.rotation.y = -fa
+		_roulette_wheel.add_child(fmi)
+
+	var stud_mesh := BoxMesh.new(); stud_mesh.size = Vector3(0.036, 0.018, 0.024)
+	for d_idx in range(8):
+		var da := float(d_idx) * TAU / 8.0
+		var dmi := MeshInstance3D.new(); dmi.mesh = stud_mesh; dmi.material_override = bronze_mat
+		dmi.position = Vector3(cos(da) * 0.615, 1.105, sin(da) * 0.615)
+		dmi.rotation.y = -da
+		table_root.add_child(dmi)
 
 	for k in range(4):
 		var bar := BoxMesh.new(); bar.size = Vector3(0.42, 0.032, 0.032)
@@ -973,14 +1025,18 @@ func _build_casino_centerpiece() -> void:
 	var spire_mi := MeshInstance3D.new(); spire_mi.mesh = spire; spire_mi.material_override = bronze_mat; spire_mi.position = Vector3(0, 0.11, 0)
 	_roulette_wheel.add_child(spire_mi)
 
-	var chip_cols := [Color(0.55, 0.12, 0.14), Color(0.14, 0.24, 0.45), Color(0.66, 0.54, 0.24), Color(0.14, 0.14, 0.16)]
-	for i in range(8):
-		var ang := float(i) * TAU / 8.0 + 0.22
-		var stack_h := 0.045 + float(i % 3) * 0.022
-		var chip := CylinderMesh.new(); chip.top_radius = 0.042; chip.bottom_radius = 0.042; chip.height = stack_h
-		var cm := MeshInstance3D.new(); cm.mesh = chip; cm.material_override = _mat(chip_cols[i % chip_cols.size()], 0.65)
-		cm.position = Vector3(cos(ang) * 1.32, 0.985 + stack_h * 0.5, sin(ang) * 1.32)
-		table_root.add_child(cm)
+	var ball_mesh := SphereMesh.new(); ball_mesh.radius = 0.019; ball_mesh.height = 0.038
+	_roulette_ball = MeshInstance3D.new()
+	_roulette_ball.name = "RouletteBall"
+	_roulette_ball.mesh = ball_mesh
+	_roulette_ball.material_override = _mat(Color(0.97, 0.95, 0.88), 0.14, 0.05)
+	_roulette_ball.position = Vector3(0.43, 1.152, 0.0)
+	table_root.add_child(_roulette_ball)
+
+	_roulette_chips_root = Node3D.new()
+	_roulette_chips_root.name = "RouletteChips"
+	table_root.add_child(_roulette_chips_root)
+	update_roulette_chips({})
 
 	var stool_post := CylinderMesh.new(); stool_post.top_radius = 0.038; stool_post.bottom_radius = 0.045; stool_post.height = 0.64
 	var stool_base := CylinderMesh.new(); stool_base.top_radius = 0.22; stool_base.bottom_radius = 0.26; stool_base.height = 0.045
@@ -1013,7 +1069,7 @@ func _build_casino_centerpiece() -> void:
 	cs.shape = cyl; cs.position = Vector3(0, 0.65, 0)
 	sb.add_child(cs)
 	sb.set_meta("interact_id", "roulette_spin")
-	sb.set_meta("interact_title", "Крутнути рулетку")
+	sb.set_meta("interact_title", "Грати в 3D Рулетку")
 	table_root.add_child(sb)
 
 
@@ -1022,7 +1078,7 @@ func _build_casino_luxury_props() -> void:
 	var walnut_mat := _pbr_mat("american_walnut_veneer", Color(0.52, 0.38, 0.28), Vector3(2.0, 2.0, 1.0), 0.38, 0.05)
 	var chrome_mat := _mat(Color(0.76, 0.78, 0.82), 0.18, 0.92)
 	var cord_mat := _textile_mat(null, Color(0.36, 0.05, 0.07), Vector3(2.0, 6.0, 1.0), 0.86)
-	var reel_glow := _mat(Color(0.95, 0.90, 0.76), 0.25, 0.0, Color(0.95, 0.82, 0.48), 0.85)
+	var bezel_mat := _mat(Color(0.10, 0.08, 0.07), 0.35, 0.45)
 	var header_glow := _mat(Color(0.85, 0.24, 0.20), 0.25, 0.0, Color(0.85, 0.20, 0.16), 0.95)
 
 	var slot_ids := ["slot_left", "slot_right"]
@@ -1034,8 +1090,53 @@ func _build_casino_luxury_props() -> void:
 		add_child(slot)
 		_add_box_body(slot, Vector3(0.92, 1.90, 0.70), Vector3(0, 0.95, 0), walnut_mat, true)
 		_add_box_body(slot, Vector3(0.98, 0.08, 0.74), Vector3(0, 1.92, 0), bronze_mat, false)
-		_add_box_body(slot, Vector3(0.76, 0.46, 0.06), Vector3(0, 1.34, 0.35), reel_glow, false)
+		_add_box_body(slot, Vector3(0.82, 0.50, 0.06), Vector3(0, 1.34, 0.345), bezel_mat, false)
 		_add_box_body(slot, Vector3(0.78, 0.30, 0.06), Vector3(0, 1.74, 0.35), header_glow, false)
+
+		var hdr_lbl := Label3D.new()
+		hdr_lbl.text = "★ 777 ★"
+		hdr_lbl.position = Vector3(0, 1.74, 0.388)
+		hdr_lbl.pixel_size = 0.004
+		hdr_lbl.font_size = 44
+		hdr_lbl.modulate = Color(1.0, 0.92, 0.36)
+		slot.add_child(hdr_lbl)
+
+		var r_vp := SubViewport.new()
+		r_vp.size = Vector2i(300, 160)
+		r_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+		var r_drawer := SlotReelDrawer.new()
+		r_drawer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		r_vp.add_child(r_drawer)
+		slot.add_child(r_vp)
+
+		var r_quad := QuadMesh.new()
+		r_quad.size = Vector2(0.76, 0.44)
+		var r_mat := StandardMaterial3D.new()
+		r_mat.albedo_texture = r_vp.get_texture()
+		r_mat.emission_enabled = true
+		r_mat.emission_texture = r_vp.get_texture()
+		r_mat.emission_energy_multiplier = 0.95
+		r_mat.roughness = 0.22
+		var r_mi := MeshInstance3D.new()
+		r_mi.mesh = r_quad
+		r_mi.material_override = r_mat
+		r_mi.position = Vector3(0, 1.34, 0.382)
+		slot.add_child(r_mi)
+
+		_slot_states.append({
+			"drawer": r_drawer,
+			"vp": r_vp,
+			"spinning": false,
+			"timer": 0.0,
+			"start_s": [0.0, 2.0, 4.0],
+			"target_s": [0.0, 2.0, 4.0],
+			"scroll": [0.0, 2.0, 4.0],
+			"stops": [0.58, 1.04, 1.50],
+			"locked": [true, true, true],
+			"win_chips": 0,
+			"win_msg": ""
+		})
+
 		var lever_pivot := Node3D.new(); lever_pivot.position = Vector3(0.52, 1.02, 0.0); slot.add_child(lever_pivot)
 		var lever := CylinderMesh.new(); lever.top_radius = 0.022; lever.bottom_radius = 0.022; lever.height = 0.52
 		var lmi := MeshInstance3D.new(); lmi.mesh = lever; lmi.material_override = chrome_mat; lmi.position = Vector3(0.0, 0.24, 0.05); lmi.rotation_degrees.x = -22.0
@@ -1046,7 +1147,7 @@ func _build_casino_luxury_props() -> void:
 		_slot_levers.append(lever_pivot)
 		var slb := StaticBody3D.new(); slb.collision_layer = 2; slb.collision_mask = 0; slb.position = Vector3(0, 1.25, 0.25)
 		var scs := CollisionShape3D.new(); var sbox := BoxShape3D.new(); sbox.size = Vector3(1.15, 1.8, 0.9); scs.shape = sbox; slb.add_child(scs)
-		slb.set_meta("interact_id", slot_ids[idx_s]); slb.set_meta("interact_title", "Крутнути гральний автомат")
+		slb.set_meta("interact_id", slot_ids[idx_s]); slb.set_meta("interact_title", "Тягнути важіль (Однорукий бандит)")
 		slot.add_child(slb)
 
 	var post_mesh := CylinderMesh.new(); post_mesh.top_radius = 0.030; post_mesh.bottom_radius = 0.032; post_mesh.height = 0.90
@@ -1352,31 +1453,146 @@ func get_painting_by_id(painting_id: String) -> Dictionary:
 
 
 func trigger_slot(idx: int) -> String:
-	if idx >= 0 and idx < _slot_pulls.size():
-		_slot_pulls[idx] = 1.0
+	if idx < 0 or idx >= _slot_states.size():
+		return ""
+	var st: Dictionary = _slot_states[idx]
+	if bool(st["spinning"]):
+		return "⏳ Барабани ще крутяться!"
+	_slot_pulls[idx] = 1.0
 	AudioSfx.play_slot_spin()
-	var roll := randi() % 10
+
+	var roll := randi() % 20
+	var targets: Array = [0, 0, 0]
+	var win_chips := 0
+	var win_msg := ""
 	if roll == 0:
-		AudioSfx.play_fanfare()
-		return "★ ДЖЕКПОТ 7-7-7! (+500 фішок!) ★"
-	elif roll <= 3:
-		AudioSfx.play_coin()
-		return "🍒 Вишні x3! (+120 фішок)"
-	elif roll <= 6:
-		AudioSfx.play_coin()
-		return "🔔 Дзвіночки! (+60 фішок)"
-	return "🍋 Повз! Крутніть ще раз!"
+		targets = [0, 0, 0]
+		win_chips = 500
+		win_msg = "★ ДЖЕКПОТ 7-7-7! (+500 фішок!) ★"
+	elif roll <= 2:
+		targets = [3, 3, 3]
+		win_chips = 250
+		win_msg = "💎 ДІАМАНТИ x3! (+250 фішок!)"
+	elif roll <= 5:
+		targets = [1, 1, 1]
+		win_chips = 120
+		win_msg = "🍒 Вишні x3! (+120 фішок)"
+	elif roll <= 9:
+		targets = [2, 2, 2]
+		win_chips = 80
+		win_msg = "🔔 Дзвіночки x3! (+80 фішок)"
+	elif roll <= 12:
+		targets = [4, 4, 4]
+		win_chips = 60
+		win_msg = "⭐ Зірки x3! (+60 фішок)"
+	elif roll <= 15:
+		var m := randi() % 4 + 1
+		var other := (m + 2) % 6
+		targets = [m, m, other]
+		win_chips = 25
+		win_msg = "✨ Пара символів! (+25 фішок)"
+	else:
+		var s0 := randi() % 6
+		var s1 := (s0 + 1 + randi() % 2) % 6
+		var s2 := (s1 + 1 + randi() % 2) % 6
+		targets = [s0, s1, s2]
+		win_chips = 0
+		win_msg = "🍋 Повз! Спробуйте ще раз!"
+
+	var cur_scrolls: Array = st["scroll"]
+	var start_s: Array = []
+	var target_s: Array = []
+	for r in range(3):
+		var c := float(cur_scrolls[r])
+		start_s.append(c)
+		var base_cycle := floorf(c / 6.0) * 6.0 + float(18 + r * 12)
+		var ts := base_cycle + float(targets[r])
+		if ts <= c + 6.0:
+			ts += 6.0
+		target_s.append(ts)
+
+	st["spinning"] = true
+	st["timer"] = 0.0
+	st["start_s"] = start_s
+	st["target_s"] = target_s
+	st["locked"] = [false, false, false]
+	st["win_chips"] = win_chips
+	st["win_msg"] = win_msg
+	var drawer: SlotReelDrawer = st["drawer"]
+	drawer.win_flash = 0.0
+	var vp: SubViewport = st["vp"]
+	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	return "🎰 Тягнемо важіль — барабани пішли!"
+
+
+func is_slot_spinning(idx: int) -> bool:
+	if idx < 0 or idx >= _slot_states.size():
+		return false
+	return bool(_slot_states[idx]["spinning"])
+
+
+func get_roulette_table() -> Node3D:
+	return _roulette_table
+
+
+func is_roulette_spinning() -> bool:
+	return _roulette_spinning
+
+
+func update_roulette_chips(bets: Dictionary) -> void:
+	if _roulette_chips_root == null:
+		return
+	for ch in _roulette_chips_root.get_children():
+		_roulette_chips_root.remove_child(ch)
+		ch.queue_free()
+	var chip_cols := [Color(0.68, 0.14, 0.16), Color(0.14, 0.28, 0.56), Color(0.76, 0.62, 0.24), Color(0.12, 0.48, 0.28), Color(0.16, 0.16, 0.18)]
+	var active_keys := bets.keys()
+	if active_keys.is_empty():
+		for i in range(8):
+			var ang := float(i) * TAU / 8.0 + 0.22
+			var stack_h := 0.045 + float(i % 3) * 0.022
+			var chip := CylinderMesh.new(); chip.top_radius = 0.042; chip.bottom_radius = 0.042; chip.height = stack_h
+			var cm := MeshInstance3D.new(); cm.mesh = chip; cm.material_override = _mat(chip_cols[i % chip_cols.size()], 0.45)
+			cm.position = Vector3(cos(ang) * 1.32, 0.985 + stack_h * 0.5, sin(ang) * 1.32)
+			_roulette_chips_root.add_child(cm)
+		return
+	var idx := 0
+	for k in active_keys:
+		var amt := int(bets[k])
+		if amt <= 0:
+			continue
+		var col_idx := clampi(amt / 50, 0, chip_cols.size() - 1)
+		var stack_cnt := clampi(1 + amt / 25, 1, 7)
+		var stack_h := float(stack_cnt) * 0.015
+		var ang := 0.55 + float(idx % 10) * 0.42 + floorf(float(idx) / 10.0) * 0.18
+		var rad := 1.24 + float(idx % 3) * 0.14
+		var chip := CylinderMesh.new(); chip.top_radius = 0.042; chip.bottom_radius = 0.042; chip.height = stack_h
+		var cm := MeshInstance3D.new(); cm.mesh = chip; cm.material_override = _mat(chip_cols[col_idx], 0.38, 0.12)
+		cm.position = Vector3(cos(ang) * rad, 0.985 + stack_h * 0.5, sin(ang) * rad)
+		_roulette_chips_root.add_child(cm)
+		idx += 1
+
+
+func start_roulette_spin() -> int:
+	if _roulette_spinning:
+		return -1
+	_roulette_target_idx = randi() % 37
+	_roulette_target_num = int(EURO_WHEEL[_roulette_target_idx])
+	_roulette_spinning = true
+	_roulette_spin_t = 0.0
+	_roulette_boost = 7.2
+	_roulette_last_tick_step = -1
+	_roulette_last_tick_t = -1.0
+	AudioSfx.play_slot_spin()
+	return _roulette_target_num
 
 
 func trigger_roulette() -> String:
-	_roulette_boost = 14.0
-	AudioSfx.play_slot_spin()
-	var pocket := randi() % 37
-	if pocket == 0:
-		AudioSfx.play_fanfare()
-		return "🟢 0 ЗЕРО! Неймовірний куш!"
-	var col := "🔴 Червоне" if pocket % 2 == 1 else "⚫ Чорне"
-	return "🎡 Рулетка крутиться... випало %s %d!" % [col, pocket]
+	var n := start_roulette_spin()
+	if n < 0:
+		return "🎡 Кулька вже біжить по колу!"
+	var col := "🟢 0 ЗЕРО" if n == 0 else (("🔴 Червоне %d" if (n in RED_NUMS) else "⚫ Чорне %d") % n)
+	return "🎡 Рулетка крутиться... випало %s!" % col
 
 
 func toggle_disco() -> bool:
@@ -1390,12 +1606,89 @@ func toggle_disco() -> bool:
 
 func _process(delta: float) -> void:
 	if _roulette_wheel:
-		_roulette_boost = maxf(0.0, _roulette_boost - delta * 3.8)
-		_roulette_wheel.rotate_y(delta * (0.65 + _roulette_boost))
+		if _roulette_spinning:
+			_roulette_spin_t += delta
+			var u := clampf(_roulette_spin_t / _roulette_spin_dur, 0.0, 1.0)
+			var w_speed := 0.55 + lerpf(7.2, 0.0, pow(u, 0.75))
+			_roulette_wheel.rotate_y(delta * w_speed)
+			var pa := float(_roulette_target_idx) * TAU / 37.0
+			var b_u := minf(_roulette_spin_t / (_roulette_spin_dur * 0.80), 1.0)
+			var rel_ang := pa + pow(1.0 - b_u, 1.95) * (9.0 * TAU)
+			var b_rad := 0.43
+			var b_y := 0.042
+			if b_u < 0.65:
+				var rim_u := b_u / 0.65
+				b_rad = lerpf(0.605, 0.562, rim_u)
+				b_y = lerpf(0.052, 0.048, rim_u)
+			elif b_u < 1.0:
+				var drop_u := (b_u - 0.65) / 0.35
+				b_rad = lerpf(0.562, 0.43, drop_u)
+				b_y = lerpf(0.048, 0.042, drop_u) + absf(sin(drop_u * PI * 3.0)) * (1.0 - drop_u) * 0.028
+			if b_u < 0.99:
+				var tick_step := int(floor(rel_ang / (TAU / 37.0)))
+				if tick_step != _roulette_last_tick_step and (_roulette_spin_t - _roulette_last_tick_t) >= 0.058:
+					_roulette_last_tick_step = tick_step
+					_roulette_last_tick_t = _roulette_spin_t
+					AudioSfx.play_ui_click()
+			if _roulette_ball and _roulette_table:
+				_roulette_ball.position = _roulette_table.to_local(_roulette_wheel.to_global(Vector3(cos(rel_ang) * b_rad, b_y, sin(rel_ang) * b_rad)))
+			if _roulette_spin_t >= _roulette_spin_dur:
+				_roulette_spinning = false
+				roulette_spin_finished.emit(_roulette_target_num)
+		else:
+			_roulette_boost = maxf(0.0, _roulette_boost - delta * 3.8)
+			_roulette_wheel.rotate_y(delta * (0.55 + _roulette_boost))
+			if _roulette_ball and _roulette_table:
+				var pa := float(_roulette_target_idx) * TAU / 37.0
+				_roulette_ball.position = _roulette_table.to_local(_roulette_wheel.to_global(Vector3(cos(pa) * 0.43, 0.042, sin(pa) * 0.43)))
+
 	for si: int in range(_slot_levers.size()):
 		if _slot_pulls[si] > 0.0:
 			_slot_pulls[si] = maxf(0.0, _slot_pulls[si] - delta * 2.2)
 			_slot_levers[si].rotation_degrees.x = sin(_slot_pulls[si] * PI) * 58.0
+
+	for idx_s: int in range(_slot_states.size()):
+		var st: Dictionary = _slot_states[idx_s]
+		if not bool(st["spinning"]):
+			continue
+		st["timer"] = float(st["timer"]) + delta
+		var t_s := float(st["timer"])
+		var stops: Array = st["stops"]
+		var start_s: Array = st["start_s"]
+		var target_s: Array = st["target_s"]
+		var locked: Array = st["locked"]
+		var cur_sc: Array = st["scroll"]
+		var drawer: SlotReelDrawer = st["drawer"]
+		var all_done := true
+		for r in range(3):
+			var st_time := float(stops[r])
+			if t_s < st_time:
+				all_done = false
+				var ru := clampf(t_s / st_time, 0.0, 1.0)
+				var ease_u := 1.0 - pow(1.0 - ru, 2.35)
+				cur_sc[r] = lerpf(float(start_s[r]), float(target_s[r]), ease_u)
+			else:
+				cur_sc[r] = float(target_s[r])
+				if not bool(locked[r]):
+					locked[r] = true
+					AudioSfx.play_ui_click()
+			drawer.reel_scrolls[r] = float(cur_sc[r])
+			drawer.reel_locked[r] = bool(locked[r])
+		if all_done:
+			st["spinning"] = false
+			var wc := int(st["win_chips"])
+			var wm := str(st["win_msg"])
+			drawer.win_flash = 1.0 if wc > 0 else 0.0
+			drawer.queue_redraw()
+			var vp: SubViewport = st["vp"]
+			vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+			if wc >= 250:
+				AudioSfx.play_fanfare()
+			elif wc > 0:
+				AudioSfx.play_coin()
+			slot_payout.emit(wc, wm)
+		else:
+			drawer.queue_redraw()
 	_preview_time += delta
 	if _disco_mode:
 		for di: int in range(_disco_lights.size()):
@@ -1687,3 +1980,280 @@ class PaintingCanvasDrawer extends Control:
 				draw_circle(Vector2(90, 128), 10.0, Color(0.84, 0.18, 0.18))
 				draw_circle(Vector2(128, 128), 10.0, Color(0.92, 0.74, 0.24))
 				draw_circle(Vector2(166, 128), 10.0, Color(0.18, 0.42, 0.85))
+
+
+func _build_games_map_stand() -> void:
+	var bronze_mat := _mat(Color(0.58, 0.45, 0.22), 0.30, 0.88)
+	var walnut_mat := _pbr_mat("american_walnut_veneer", Color(0.50, 0.36, 0.26), Vector3(2.0, 2.0, 1.0), 0.38, 0.05)
+	var stand := Node3D.new()
+	stand.name = "GamesMapStand"
+	# Left side when walking out South exit (+Z): +X wing near Z=8.10 angled toward central hall
+	stand.position = Vector3(3.95, 0.0, 8.10)
+	stand.rotation.y = PI + 0.36
+	add_child(stand)
+
+	_add_box_body(stand, Vector3(0.94, 0.08, 0.56), Vector3(0.0, 0.04, 0.0), walnut_mat, true)
+	_add_box_body(stand, Vector3(0.98, 0.03, 0.60), Vector3(0.0, 0.095, 0.0), bronze_mat, false)
+	for px in [-0.34, 0.34]:
+		_add_box_body(stand, Vector3(0.09, 1.05, 0.09), Vector3(px, 0.62, 0.0), walnut_mat, false)
+		_add_box_body(stand, Vector3(0.12, 0.05, 0.12), Vector3(px, 1.12, 0.0), bronze_mat, false)
+
+	var board := Node3D.new()
+	board.position = Vector3(0.0, 1.48, 0.04)
+	board.rotation_degrees.x = -20.0
+	stand.add_child(board)
+
+	_add_box_body(board, Vector3(1.52, 1.08, 0.06), Vector3(0.0, 0.0, 0.0), bronze_mat, false)
+	_add_box_body(board, Vector3(1.44, 1.00, 0.07), Vector3(0.0, 0.0, 0.005), walnut_mat, false)
+
+	var vp := SubViewport.new()
+	vp.size = Vector2i(860, 600)
+	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	var drawer := GamesMapDrawer.new()
+	drawer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	vp.add_child(drawer)
+	board.add_child(vp)
+
+	var quad := QuadMesh.new()
+	quad.size = Vector2(1.40, 0.96)
+	var qmat := StandardMaterial3D.new()
+	qmat.albedo_texture = vp.get_texture()
+	qmat.emission_enabled = true
+	qmat.emission_texture = vp.get_texture()
+	qmat.emission_energy_multiplier = 0.42
+	qmat.roughness = 0.25
+	var qmi := MeshInstance3D.new()
+	qmi.mesh = quad
+	qmi.material_override = qmat
+	qmi.position = Vector3(0.0, 0.0, 0.044)
+	board.add_child(qmi)
+
+	_add_box_body(board, Vector3(0.86, 0.04, 0.14), Vector3(0.0, 0.56, 0.10), bronze_mat, false)
+	var ml := OmniLight3D.new()
+	ml.position = Vector3(0.0, 0.52, 0.28)
+	ml.light_color = Color(1.0, 0.90, 0.72)
+	ml.light_energy = 0.85
+	ml.omni_range = 2.6
+	board.add_child(ml)
+
+	var col := StaticBody3D.new()
+	col.collision_layer = 3
+	col.collision_mask = 0
+	var cs := CollisionShape3D.new()
+	var cbox := BoxShape3D.new(); cbox.size = Vector3(1.55, 1.95, 0.75)
+	cs.shape = cbox; cs.position = Vector3(0.0, 1.0, 0.0)
+	col.add_child(cs)
+	col.set_meta("interact_id", "games_map")
+	col.set_meta("interact_title", "Карта всіх ігор (34 ігри)")
+	stand.add_child(col)
+
+
+func get_games_map_text() -> String:
+	return (
+		"ВСЬОГО У КАЗИНО: 34 УНІКАЛЬНІ ГРИ (13 + 11 + 10)  |  Стенд зліва біля південного виходу\n\n"
+		+ "1 ПОВЕРХ — ГОЛОВНИЙ ЗАЛ (13 картин):\n"
+		+ "  • Центр: Маріо, Тетріс, Змійка 3D, Бомбермен, Арканоїд, Космічна Аркада, Танчики\n"
+		+ "  • Західний зал: Соккер, Шахи, Шашки, Уголки, Морський бій\n"
+		+ "  • Східний зал: Пак-Лабіринт\n"
+		+ "  • Центр залу: 3D Європейська Рулетка (ставка фішками) | Південь: Однорукі бандити\n\n"
+		+ "ПІДВАЛ — ВХІД ЧЕРЕЗ СХІДНИЙ КОРИДОР (11 ігор):\n"
+		+ "  • Картковий ВІП-клуб: Дурак, Блекджек, Покер\n"
+		+ "  • Великий виставковий зал: 2048, Зума, Пазли, Самоцвіти, Сапер, Косинка\n"
+		+ "  • Винний льох та Сховище: Сокіл Долини, Судоку\n\n"
+		+ "МАНСАРДА — СХОДИ НА СХОДІ НАГОРУ (10 мольбертів):\n"
+		+ "  • Пітон, Гекса, Сокобан, П'ятнашки, Хрестики-Нулики,\n"
+		+ "    Теніс (Pong), Меморі, Кодовий замок, Бики та Корови, Балда\n\n"
+		+ "ДВІР НА ПІВДЕНЬ ЗА ВИХОДОМ:\n"
+		+ "  • Перегоновий спорткар (трек з 4 петлями і 4 AI-суперниками), Озера з рибками, Бінокль [E], Вівтар погоди"
+	)
+
+
+class GamesMapDrawer extends Control:
+	func _draw() -> void:
+		var f := ThemeDB.fallback_font
+		draw_rect(Rect2(Vector2.ZERO, size), Color(0.05, 0.08, 0.09))
+		draw_rect(Rect2(8, 8, size.x - 16, size.y - 16), Color(0.84, 0.68, 0.28), false, 3.0)
+		draw_rect(Rect2(12, 12, size.x - 24, 54), Color(0.11, 0.16, 0.14))
+		draw_string(f, Vector2(20, 40), "КАРТА ІГОР ТА ЗАЛІВ КАЗИНО (34 ГРИ)", HORIZONTAL_ALIGNMENT_CENTER, size.x - 40, 23, Color(1.0, 0.88, 0.42))
+		draw_string(f, Vector2(20, 60), "Вихід на південь (+Z) | Цей стенд знаходиться зліва перед виходом | Натисніть [E] щоб збільшити", HORIZONTAL_ALIGNMENT_CENTER, size.x - 40, 12, Color(0.76, 0.86, 0.80))
+
+		var zones := [
+			{
+				"rect": Rect2(22, 80, 398, 232),
+				"col": Color(0.95, 0.78, 0.30),
+				"title": "1 ПОВЕРХ • ГОЛОВНИЙ ЗАЛ (13 ігор)",
+				"lines": [
+					"• Північ/стіни: Маріо, Тетріс, Змійка 3D",
+					"  Бомбермен, Арканоїд, Аркада, Танчики",
+					"• Західний зал: Соккер, Шахи, Шашки,",
+					"  Уголки, Морський бій",
+					"• Східний зал: Пак-Лабіринт",
+					"• Центр: 3D Рулетка | Південь: Слоти 777"
+				]
+			},
+			{
+				"rect": Rect2(440, 80, 398, 232),
+				"col": Color(0.28, 0.86, 0.56),
+				"title": "ПІДВАЛ • СХІДНІ СХОДИ ВНИЗ (11 ігор)",
+				"lines": [
+					"• ВІП Картковий клуб:",
+					"  Дурак, Блекджек, Покер",
+					"• Велика галерея мольбертів:",
+					"  2048, Зума, Пазли, Самоцвіти,",
+					"  Сапер, Косинка",
+					"• Винний льох / Сейф: Сокіл Долини, Судоку"
+				]
+			},
+			{
+				"rect": Rect2(22, 328, 398, 244),
+				"col": Color(0.32, 0.80, 0.98),
+				"title": "МАНСАРДА • СХОДИ НАГОРУ (10 ігор)",
+				"lines": [
+					"• Галерея 10 мольбертів:",
+					"  Пітон, Гекса, Сокобан, П'ятнашки,",
+					"  Хрестики-Нулики, Теніс (Pong),",
+					"  Меморі, Кодовий замок,",
+					"  Бики та Корови, Балда"
+				]
+			},
+			{
+				"rect": Rect2(440, 328, 398, 244),
+				"col": Color(0.98, 0.54, 0.32),
+				"title": "НАВІГАЦІЯ ТА ДВІР НАЗОВНІ",
+				"lines": [
+					"• Двері півдня -> Озера з рибками, ліс",
+					"• Справа надворі -> Болід та 4-петльовий трек",
+					"• Біля озера -> Оглядовий бінокль [E]",
+					"• Вівтар погоди -> Зміна дощу/снігу/шторму",
+					"• Журнал квестів та артефактів -> [Q]"
+				]
+			}
+		]
+
+		for z: Dictionary in zones:
+			var zr: Rect2 = z["rect"]
+			var zc: Color = z["col"]
+			draw_rect(zr, Color(0.08, 0.11, 0.13))
+			draw_rect(zr, zc, false, 2.0)
+			draw_rect(Rect2(zr.position, Vector2(zr.size.x, 30)), Color(zc.r * 0.25, zc.g * 0.25, zc.b * 0.25))
+			draw_string(f, zr.position + Vector2(10, 21), str(z["title"]), HORIZONTAL_ALIGNMENT_LEFT, zr.size.x - 16, 15, zc)
+			var ly := zr.position.y + 52.0
+			for ln in (z["lines"] as Array):
+				draw_string(f, Vector2(zr.position.x + 12.0, ly), str(ln), HORIZONTAL_ALIGNMENT_LEFT, zr.size.x - 20.0, 14, Color(0.92, 0.94, 0.90))
+				ly += 25.0
+
+		draw_circle(Vector2(804, 540), 10.0, Color(0.96, 0.24, 0.22))
+		draw_circle(Vector2(804, 540), 14.0, Color(1.0, 0.85, 0.30), false, 2.0)
+		draw_string(f, Vector2(692, 545), "ВИ ТУТ", HORIZONTAL_ALIGNMENT_LEFT, 100, 14, Color(1.0, 0.86, 0.38))
+
+
+class SlotReelDrawer extends Control:
+	var reel_scrolls: Array[float] = [0.0, 2.0, 4.0]
+	var reel_locked: Array[bool] = [true, true, true]
+	var win_flash: float = 0.0
+
+	func _draw() -> void:
+		draw_rect(Rect2(Vector2.ZERO, size), Color(0.07, 0.05, 0.05))
+		var f := ThemeDB.fallback_font
+		var reel_w := 88.0
+		var gap := 8.0
+		var start_x := 10.0
+		var win_top := 8.0
+		var win_h := size.y - 16.0
+		var mid_y := win_top + win_h * 0.5
+		var cell_h := 56.0
+
+		for r in range(3):
+			var rx := start_x + float(r) * (reel_w + gap)
+			var box := Rect2(rx, win_top, reel_w, win_h)
+			draw_rect(box, Color(0.97, 0.94, 0.85))
+			var s := reel_scrolls[r]
+			var base := int(floor(s))
+			var frac := s - float(base)
+			for k in [-1, 0, 1]:
+				var sym_idx := posmod(base - k, 6)
+				var cy := mid_y + (float(k) + frac) * cell_h
+				if cy < win_top - 22.0 or cy > win_top + win_h + 22.0:
+					continue
+				_draw_symbol(f, Vector2(rx + reel_w * 0.5, cy), sym_idx)
+			# Drum curvature shadows top/bottom
+			draw_rect(Rect2(rx, win_top, reel_w, 26.0), Color(0.08, 0.05, 0.04, 0.42))
+			draw_rect(Rect2(rx, win_top + win_h - 26.0, reel_w, 26.0), Color(0.08, 0.05, 0.04, 0.42))
+			var frame_col := Color(0.98, 0.82, 0.24) if (win_flash > 0.5 and reel_locked[r]) else (Color(0.55, 0.42, 0.16) if reel_locked[r] else Color(0.86, 0.34, 0.22))
+			draw_rect(box, frame_col, false, 3.0)
+
+		# Center Payline strip & triangle pointers
+		var line_col := Color(0.98, 0.86, 0.24, 0.92) if win_flash > 0.5 else Color(0.92, 0.24, 0.18, 0.72)
+		draw_line(Vector2(2, mid_y), Vector2(size.x - 2, mid_y), line_col, 2.5)
+		draw_colored_polygon(PackedVector2Array([Vector2(2, mid_y - 7), Vector2(10, mid_y), Vector2(2, mid_y + 7)]), Color(0.98, 0.84, 0.24))
+		draw_colored_polygon(PackedVector2Array([Vector2(size.x - 2, mid_y - 7), Vector2(size.x - 10, mid_y), Vector2(size.x - 2, mid_y + 7)]), Color(0.98, 0.84, 0.24))
+
+	func _draw_symbol(f: Font, c: Vector2, idx: int) -> void:
+		match idx:
+			0: # Golden 7
+				draw_circle(c, 22.0, Color(0.55, 0.08, 0.10))
+				draw_circle(c, 22.0, Color(0.96, 0.80, 0.20), false, 2.5)
+				draw_string(f, c + Vector2(-22, 13), "7", HORIZONTAL_ALIGNMENT_CENTER, 44, 34, Color(1.0, 0.88, 0.24))
+			1: # Twin Cherries
+				draw_line(c + Vector2(-7, 6), c + Vector2(2, -16), Color(0.18, 0.52, 0.16), 2.5)
+				draw_line(c + Vector2(9, 8), c + Vector2(2, -16), Color(0.18, 0.52, 0.16), 2.5)
+				draw_circle(c + Vector2(5, -16), 5.0, Color(0.20, 0.74, 0.24))
+				draw_circle(c + Vector2(-8, 10), 9.5, Color(0.86, 0.08, 0.12))
+				draw_circle(c + Vector2(10, 11), 9.5, Color(0.82, 0.06, 0.10))
+				draw_circle(c + Vector2(-11, 7), 2.5, Color(1.0, 0.72, 0.72))
+			2: # Golden Bell
+				draw_colored_polygon(PackedVector2Array([c + Vector2(-13, 12), c + Vector2(-9, -10), c + Vector2(0, -16), c + Vector2(9, -10), c + Vector2(13, 12)]), Color(0.94, 0.74, 0.16))
+				draw_circle(c + Vector2(0, 15), 4.0, Color(0.72, 0.44, 0.08))
+				draw_rect(Rect2(c + Vector2(-15, 11), Vector2(30, 4)), Color(0.98, 0.86, 0.34))
+			3: # Cyan Diamond
+				var pts := PackedVector2Array([c + Vector2(0, -18), c + Vector2(17, -2), c + Vector2(0, 18), c + Vector2(-17, -2)])
+				draw_colored_polygon(pts, Color(0.22, 0.82, 0.98))
+				draw_line(c + Vector2(-17, -2), c + Vector2(17, -2), Color(0.82, 0.97, 1.0), 2.0)
+			4: # Gold Star
+				var star := PackedVector2Array()
+				for i in range(10):
+					var a := float(i) * PI / 5.0 - PI * 0.5
+					var rr := 18.0 if i % 2 == 0 else 8.0
+					star.append(c + Vector2(cos(a), sin(a)) * rr)
+				draw_colored_polygon(star, Color(0.98, 0.78, 0.16))
+			5: # Bright Lemon
+				draw_circle(c, 15.0, Color(0.98, 0.86, 0.14))
+				draw_circle(c + Vector2(-14, 0), 5.0, Color(0.96, 0.82, 0.12))
+				draw_circle(c + Vector2(14, 0), 5.0, Color(0.96, 0.82, 0.12))
+				draw_circle(c + Vector2(12, -10), 4.5, Color(0.22, 0.68, 0.24))
+
+
+class RouletteWheelDrawer extends Control:
+	const ORDER: Array[int] = [
+		0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10,
+		5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
+	]
+	const REDS: Array[int] = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]
+
+	func _draw() -> void:
+		var c := size * 0.5
+		var outer_r := minf(size.x, size.y) * 0.49
+		var rim_r := outer_r * 0.94
+		var inner_r := outer_r * 0.58
+		draw_circle(c, outer_r, Color(0.46, 0.34, 0.14))
+		var half_w := PI / 37.0
+		var f := ThemeDB.fallback_font
+		for p_idx in range(37):
+			var pa := float(p_idx) * TAU / 37.0
+			var n := int(ORDER[p_idx])
+			var col := Color(0.05, 0.56, 0.22) if n == 0 else (Color(0.72, 0.08, 0.10) if (n in REDS) else Color(0.08, 0.08, 0.10))
+			var pts := PackedVector2Array()
+			pts.append(c + Vector2(cos(pa - half_w), sin(pa - half_w)) * inner_r)
+			pts.append(c + Vector2(cos(pa - half_w), sin(pa - half_w)) * rim_r)
+			pts.append(c + Vector2(cos(pa + half_w), sin(pa + half_w)) * rim_r)
+			pts.append(c + Vector2(cos(pa + half_w), sin(pa + half_w)) * inner_r)
+			draw_colored_polygon(pts, col)
+			draw_line(c + Vector2(cos(pa - half_w), sin(pa - half_w)) * inner_r, c + Vector2(cos(pa - half_w), sin(pa - half_w)) * rim_r, Color(0.86, 0.70, 0.28), 1.8)
+			var num_p := c + Vector2(cos(pa), sin(pa)) * (rim_r * 0.87)
+			draw_set_transform(num_p, pa + PI * 0.5)
+			draw_string(f, Vector2(-14, 5), str(n), HORIZONTAL_ALIGNMENT_CENTER, 28, 14, Color.WHITE)
+		draw_set_transform(Vector2.ZERO, 0.0)
+		draw_circle(c, inner_r, Color(0.28, 0.14, 0.08))
+		draw_arc(c, inner_r, 0.0, TAU, 64, Color(0.88, 0.72, 0.28), 3.0)
+		draw_arc(c, rim_r, 0.0, TAU, 64, Color(0.88, 0.72, 0.28), 3.0)
+		draw_circle(c, inner_r * 0.72, Color(0.56, 0.42, 0.18))

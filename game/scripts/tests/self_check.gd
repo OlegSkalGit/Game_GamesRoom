@@ -1,5 +1,7 @@
 extends Node
 
+const RouletteOverlayScript := preload("res://scripts/ui/roulette_overlay.gd")
+
 # Automated headless self-check verifying:
 # 1. ConfigManager reads/writes game/config.cfg & presets 0..5 + display settings
 # 2. WorldBuilder initializes Sky3D + Terrain3D + Lakes + Dense Vegetation + Wildlife + CasinoRoom
@@ -279,6 +281,14 @@ func _run_checks() -> void:
 	if not _check(car._phase == 1, "Race did not transition to RACING after 3-2-1 countdown"): return
 	for rv in rt.rivals:
 		if not _check(float(rv["cur_spd"]) > 5.0, "AI rival did not launch simultaneously on GO"): return
+	rt.player_progress_dist = 75.0
+	for _rs in range(90):
+		rt._process(1.0 / 60.0)
+	var max_ai_spd := 0.0
+	for rv in rt.rivals:
+		max_ai_spd = maxf(max_ai_spd, float(rv["cur_spd"]))
+	if not _check(max_ai_spd >= 52.0, "AI rivals too slow during catchup/overtake: %.1f" % max_ai_spd): return
+	rt.player_progress_dist = car._progress_dist
 
 	# Test slow-speed entry & climb through a vertical loop + smooth steering left/right
 	var first_loop_s := 0.0
@@ -330,6 +340,41 @@ func _run_checks() -> void:
 	AudioSfx.play_countdown_beep(true)
 	AudioSfx.play_race_finish()
 	print("[PASS] AudioSfx world & minigame sound API")
+
+	# 7. Exit-Left Games Directory Map, Animated 3-Reel Slots, & 3D Roulette Checks
+	var gm := world.casino_room.get_node_or_null("GamesMapStand") as Node3D
+	if not _check(gm != null and gm.position.x > 3.0 and gm.position.z > 7.0, "GamesMapStand missing at exit-left (+X, +Z)"): return
+	main._toggle_games_map()
+	if not _check(main._games_map_panel.visible and main._games_map_lbl.text.contains("34"), "Games map modal toggle/text failed"): return
+	main._toggle_games_map()
+	if not _check(not main._games_map_panel.visible, "Games map modal failed to close"): return
+
+	var slot_paid := [false]
+	var slot_cb := func(_won: int, _msg: String): slot_paid[0] = true
+	world.casino_room.slot_payout.connect(slot_cb)
+	var slot_txt := world.casino_room.trigger_slot(0)
+	if not _check(slot_txt != "" and world.casino_room.is_slot_spinning(0), "Slot machine failed to start animated spin"): return
+	for _sl in range(14):
+		world.casino_room._process(0.14)
+	if not _check(not world.casino_room.is_slot_spinning(0) and bool(slot_paid[0]), "Slot machine failed to lock reels & emit payout"): return
+
+	if not _check(RouletteOverlayScript.compute_payout({"red": 100, "n_18": 50}, 18) == 2000, "Roulette payout formula mismatch for red+straight"): return
+	if not _check(RouletteOverlayScript.compute_payout({"red": 100, "black": 100}, 17) == 200, "Roulette pocket 17 black payout mismatch"): return
+	if not _check(RouletteOverlayScript.compute_payout({"red": 100, "even": 100}, 0) == 0, "Roulette Zero pocket house rule mismatch"): return
+	world.casino_room.update_roulette_chips({"red": 50, "n_17": 25})
+	if not _check(world.casino_room._roulette_chips_root.get_child_count() == 2, "3D roulette chips stack count mismatch"): return
+	var r_done := [-1]
+	var r_cb := func(wn: int): r_done[0] = wn
+	world.casino_room.roulette_spin_finished.connect(r_cb)
+	var r_win := world.casino_room.start_roulette_spin()
+	if not _check(r_win >= 0 and r_win <= 36 and world.casino_room.is_roulette_spinning(), "3D Roulette failed to start spin"): return
+	for _rl in range(22):
+		world.casino_room._process(0.22)
+	var ball_p: Vector3 = world.casino_room._roulette_ball.position
+	var wheel_c: Vector3 = world.casino_room._roulette_wheel.position
+	var ball_rad := Vector2(ball_p.x - wheel_c.x, ball_p.z - wheel_c.z).length()
+	if not _check(not world.casino_room.is_roulette_spinning() and int(r_done[0]) == r_win and absf(ball_rad - 0.43) < 0.03, "3D Roulette ball failed to settle in pocket (r=%.3f)" % ball_rad): return
+	print("[PASS] Exit-Left 34-Game Map, 3-Reel Animated Slots, & Full 3D Roulette")
 
 	main.queue_free()
 	await get_tree().process_frame

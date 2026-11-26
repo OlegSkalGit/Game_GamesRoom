@@ -248,6 +248,7 @@ func _physics_process(delta: float) -> void:
 		var t_len := float(_track.total_length)
 		_track_s = fposmod(_track_s + advance, t_len)
 		_progress_dist += advance
+		_track.player_progress_dist = _progress_dist
 
 		# Anti-cheat continuous 3-lap counting & Finish check
 		if _phase == Phase.RACING:

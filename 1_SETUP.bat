@@ -97,7 +97,7 @@ if exist "%TMP_DIR%" rmdir /s /q "%TMP_DIR%"
 echo.
 echo ============================================================
 echo   Setup complete!
-echo   Run: 2_RUN.bat / 2_RUN_DX12.bat / 2_RUN_OpenGL.bat
+echo   Run: 2_RUN.bat / 2_RUN_DX12.bat / 2_RUN_OpenGL.bat / 2_RUN_Vulkan.bat
 echo ============================================================
 if not defined NO_PAUSE pause
 exit /b 0

@@ -25,6 +25,8 @@ var _gantry_light: OmniLight3D
 var _tl_bulbs: Dictionary = {"red": [], "amber": [], "green": []}
 var _tl_mats: Dictionary = {}
 var _race_mode: String = "idle" # "idle", "countdown", "racing"
+var player_progress_dist: float = 0.0
+var _race_elapsed: float = 0.0
 static var _f1_tex_cache: Dictionary = {}
 
 
@@ -1071,10 +1073,10 @@ static func build_sports_car_mesh(body_col: Color, with_headlights: bool = false
 
 func _spawn_ai_rivals() -> void:
 	var specs := [
-		{"name": "Червоний", "col": Color(0.92, 0.16, 0.14), "s_ratio": 0.14, "lat": -2.6, "spd": 43.0},
-		{"name": "Бірюзовий", "col": Color(0.14, 0.86, 0.74), "s_ratio": 0.36, "lat": 2.6, "spd": 46.5},
-		{"name": "Золотий", "col": Color(0.96, 0.78, 0.16), "s_ratio": 0.58, "lat": -2.6, "spd": 40.8},
-		{"name": "Смарагдовий", "col": Color(0.16, 0.82, 0.34), "s_ratio": 0.80, "lat": 2.6, "spd": 44.8}
+		{"name": "Червоний", "col": Color(0.92, 0.16, 0.14), "s_ratio": 0.14, "lat": -2.6, "spd": 48.8},
+		{"name": "Бірюзовий", "col": Color(0.14, 0.86, 0.74), "s_ratio": 0.36, "lat": 2.6, "spd": 50.4},
+		{"name": "Золотий", "col": Color(0.96, 0.78, 0.16), "s_ratio": 0.58, "lat": -2.6, "spd": 47.6},
+		{"name": "Смарагдовий", "col": Color(0.16, 0.82, 0.34), "s_ratio": 0.80, "lat": 2.6, "spd": 49.4}
 	]
 	for i: int in range(specs.size()):
 		var car := build_sports_car_mesh(specs[i]["col"], false)
@@ -1099,9 +1101,11 @@ func _spawn_ai_rivals() -> void:
 func prepare_race_start() -> void:
 	if frames.is_empty():
 		return
-	var grid_back := [11.0, 11.0, 17.5, 17.5]
+	var grid_back := [9.0, 9.0, 14.5, 14.5]
 	var grid_lanes := [-2.7, 2.7, -2.7, 2.7]
 	_race_mode = "countdown"
+	player_progress_dist = -6.0
+	_race_elapsed = 0.0
 	for i: int in range(rivals.size()):
 		var r: Dictionary = rivals[i]
 		var back := float(grid_back[i % grid_back.size()])
@@ -1246,6 +1250,9 @@ func _process(delta: float) -> void:
 			_sync_rival_transform(r, 0.0)
 		return
 
+	if _race_mode == "racing":
+		_race_elapsed += delta
+
 	for i: int in range(rivals.size()):
 		var r: Dictionary = rivals[i]
 		var sp_now := sample_at_s(float(r["s"]))
@@ -1254,11 +1261,24 @@ func _process(delta: float) -> void:
 			if bool(sp_now["is_boost"]) or bool(sp_now["is_crest_boost"]):
 				target_spd *= 1.24
 			elif bool(sp_now["is_loop"]):
-				target_spd = maxf(target_spd, 44.0)
-			if _race_mode == "racing" and bool(r["finished"]):
-				target_spd *= 0.65 # Cooldown lap speed after crossing finish
+				target_spd = maxf(target_spd, 48.0)
 
-		var cur_spd := move_toward(float(r["cur_spd"]), target_spd, delta * 24.0)
+		if _race_mode == "racing":
+			if bool(r["finished"]):
+				target_spd *= 0.65
+			else:
+				# Dynamic neck-and-neck slipstream catch-up + periodic DRS overtake surges
+				var gap := player_progress_dist - float(r["progress_dist"])
+				if gap > 5.0:
+					target_spd += clampf((gap - 5.0) * 0.45, 0.0, 16.5)
+				elif gap < -16.0:
+					target_spd += clampf((gap + 16.0) * 0.34, -8.5, 0.0)
+				var surge := sin(_race_elapsed * (0.48 + float(i) * 0.11) + float(i) * 1.7)
+				if surge > 0.50 and absf(gap) < 35.0:
+					target_spd += 5.5 + 3.5 * clampf((surge - 0.50) * 2.0, 0.0, 1.0)
+				target_spd = clampf(target_spd, 34.0, 68.0)
+
+		var cur_spd := move_toward(float(r["cur_spd"]), target_spd, delta * 44.0)
 		r["cur_spd"] = cur_spd
 
 		var ds := cur_spd * delta
