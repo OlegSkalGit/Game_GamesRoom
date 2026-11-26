@@ -374,6 +374,13 @@ func _run_checks() -> void:
 	var wheel_c: Vector3 = world.casino_room._roulette_wheel.position
 	var ball_rad := Vector2(ball_p.x - wheel_c.x, ball_p.z - wheel_c.z).length()
 	if not _check(not world.casino_room.is_roulette_spinning() and int(r_done[0]) == r_win and absf(ball_rad - 0.43) < 0.03, "3D Roulette ball failed to settle in pocket (r=%.3f)" % ball_rad): return
+	main._roulette_ui.open(200)
+	main._roulette_ui._place_bet("red")
+	var key_spin_cnt := [0]
+	var ks_cb := func(_b: Dictionary): key_spin_cnt[0] = int(key_spin_cnt[0]) + 1
+	main._roulette_ui.spin_requested.connect(ks_cb)
+	if not _check(main._roulette_ui._spin_btn.text.contains("ЗАПУСТИТИ") and main._roulette_ui.handle_key(KEY_ENTER) and int(key_spin_cnt[0]) == 1, "Roulette launch button / KEY_ENTER trigger failed"): return
+	main._roulette_ui.close_overlay()
 	print("[PASS] Exit-Left 34-Game Map, 3-Reel Animated Slots, & Full 3D Roulette")
 
 	main.queue_free()

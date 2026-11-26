@@ -14,7 +14,6 @@ var _menu: CanvasLayer
 var _minigame_host: MinigameHost
 
 var _hud_layer: CanvasLayer
-var _crosshair: ColorRect
 var _prompt_panel: PanelContainer
 var _prompt_lbl: Label
 var _status_lbl: Label
@@ -135,16 +134,6 @@ func _build_hud() -> void:
 	_hud_layer = CanvasLayer.new()
 	_hud_layer.layer = 10
 	add_child(_hud_layer)
-
-	# Center subtle crosshair dot
-	_crosshair = ColorRect.new()
-	_crosshair.size = Vector2(6, 6)
-	_crosshair.color = Color(1.0, 0.96, 0.85, 0.82)
-	_crosshair.set_anchors_preset(Control.PRESET_CENTER)
-	_crosshair.position = Vector2(-3, -3)
-	_crosshair.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_crosshair.visible = false
-	_hud_layer.add_child(_crosshair)
 
 	# Painting interaction prompt
 	_prompt_panel = PanelContainer.new()
@@ -562,7 +551,6 @@ func _input(event: InputEvent) -> void:
 
 func _pause_to_menu() -> void:
 	_player.set_controls_active(false)
-	_crosshair.visible = false
 	_prompt_panel.visible = false
 	_status_lbl.visible = false
 	if _quest_hud_panel: _quest_hud_panel.visible = false
@@ -578,14 +566,12 @@ func _on_new_game_requested() -> void:
 	_menu.set_game_started(true)
 	_player.reset_to_casino_spawn()
 	_player.set_controls_active(true)
-	_crosshair.visible = true
 	_status_lbl.visible = true
 	if _quest_hud_panel: _quest_hud_panel.visible = true
 
 
 func _on_resume_requested() -> void:
 	_player.set_controls_active(true)
-	_crosshair.visible = true
 	_status_lbl.visible = true
 	if _quest_hud_panel: _quest_hud_panel.visible = true
 
@@ -620,7 +606,6 @@ func _enter_binoculars() -> void:
 	_bino_pitch = -0.10
 	_bino_zoom = 4.0
 	_player.set_controls_active(false)
-	_crosshair.visible = false
 	_prompt_panel.visible = false
 	_status_lbl.visible = false
 	_bino_cam.current = true
@@ -636,7 +621,6 @@ func _exit_binoculars() -> void:
 	_bino_cam.current = false
 	_player.get_camera().current = true
 	_player.set_controls_active(true)
-	_crosshair.visible = true
 	_status_lbl.visible = true
 	if _quest_hud_panel:
 		_quest_hud_panel.visible = true
@@ -648,7 +632,6 @@ func _start_race() -> void:
 		return
 	_is_driving = true
 	_player.set_controls_active(false)
-	_crosshair.visible = false
 	_prompt_panel.visible = false
 	_race_hud_lbl.visible = true
 	_race_car.start_race()
@@ -666,7 +649,6 @@ func _exit_race() -> void:
 	_player.velocity = Vector3.ZERO
 	_player.get_camera().current = true
 	_player.set_controls_active(true)
-	_crosshair.visible = true
 	_show_toast("Ви припаркувались біля зупинки траси!")
 
 
@@ -768,7 +750,6 @@ func _on_interact_painting_requested(painting_id: String) -> void:
 	_transitioning = true
 	_active_painting_id = painting_id
 	_player.set_controls_active(false)
-	_crosshair.visible = false
 	_prompt_panel.visible = false
 	_status_lbl.visible = false
 
@@ -834,7 +815,6 @@ func _on_minigame_exit_requested() -> void:
 	_portal_overlay.visible = false
 	_transitioning = false
 	_player.set_controls_active(true)
-	_crosshair.visible = true
 	_status_lbl.visible = true
 	if _quest_hud_panel:
 		_quest_hud_panel.visible = true
@@ -858,7 +838,6 @@ func _enter_roulette_game() -> void:
 		return
 	_transitioning = true
 	_player.set_controls_active(false)
-	_crosshair.visible = false
 	_prompt_panel.visible = false
 	_status_lbl.visible = false
 	if _quest_hud_panel:
@@ -960,7 +939,6 @@ func _exit_roulette_game() -> void:
 	_in_roulette = false
 	_transitioning = false
 	_player.set_controls_active(true)
-	_crosshair.visible = true
 	_status_lbl.visible = true
 	if _quest_hud_panel:
 		_quest_hud_panel.visible = true
