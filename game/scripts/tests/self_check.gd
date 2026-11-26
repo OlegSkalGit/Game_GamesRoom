@@ -54,6 +54,11 @@ func _run_checks() -> void:
 	if not _check(world.wildlife != null, "WildlifeController missing"): return
 	if not _check(world.race_track != null and world.race_track.rivals.size() == 3, "MountainRaceTrack or AI rivals missing"): return
 	if not _check(menu.visible == true, "Menu must be open on first start"): return
+	var intro = main.get_node_or_null("IntroSplash")
+	if not _check(intro != null and intro.is_playing(), "IntroSplash missing on startup"): return
+	intro.skip(false)
+	await get_tree().create_timer(0.4).timeout
+	if not _check(main.get_node_or_null("IntroSplash") == null, "IntroSplash did not skip cleanly"): return
 	menu._open_subtab("display")
 	if not _check(menu._sub_panel.visible and menu._active_tab == "display", "Settings Display tab failed"): return
 	menu._open_subtab("graphics")

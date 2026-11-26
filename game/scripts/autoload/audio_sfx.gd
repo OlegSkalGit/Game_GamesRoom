@@ -327,6 +327,17 @@ func play_puzzle_snap() -> void:
 	play_tone(880.0, 0.11, "sine", 1174.6, 0.18, 0.0, 0.06)
 
 
+func play_intro_fanfare() -> void:
+	# Warm Emerald-Gold Casino Lounge Chord + Shimmer Arpeggio
+	play_tone(130.8, 1.35, "triangle", 130.8, 0.18, 0.0, 0.02)
+	play_tone(261.6, 1.15, "sine", 261.6, 0.14, -0.35, 0.08)
+	play_tone(329.6, 1.10, "sine", 329.6, 0.14, 0.35, 0.16)
+	play_tone(392.0, 1.05, "triangle", 392.0, 0.13, -0.2, 0.24)
+	play_tone(493.9, 1.00, "sine", 493.9, 0.12, 0.2, 0.34)
+	play_tone(523.3, 1.10, "triangle", 523.3, 0.15, 0.0, 0.48)
+	play_tone(659.3, 0.90, "sine", 659.3, 0.13, 0.0, 0.62)
+
+
 func _process(delta: float) -> void:
 	if _sfx_playback == null:
 		return

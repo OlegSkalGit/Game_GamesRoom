@@ -2,11 +2,13 @@ extends Node3D
 
 const RaceCarScript := preload("res://scripts/player/race_car.gd")
 const QuestMgrScript := preload("res://scripts/autoload/quest_manager.gd")
+const IntroSplashScript := preload("res://scripts/ui/intro_splash.gd")
 
 var _world: WorldBuilder
 var _player: PlayerController
 var _race_car
 var _quests
+var _intro
 var _menu: CanvasLayer
 var _minigame_host: MinigameHost
 
@@ -95,6 +97,10 @@ func _ready() -> void:
 	if _world.weather:
 		_world.weather.weather_state_changed.connect(_update_status_hud)
 	_update_status_hud("")
+
+	_intro = IntroSplashScript.new()
+	_intro.name = "IntroSplash"
+	add_child(_intro)
 
 
 func _build_hud() -> void:
@@ -461,6 +467,8 @@ func _pause_to_menu() -> void:
 
 
 func _on_new_game_requested() -> void:
+	if is_instance_valid(_intro):
+		_intro.skip(true)
 	_menu.close_menu()
 	_menu.set_game_started(true)
 	_player.reset_to_casino_spawn()
