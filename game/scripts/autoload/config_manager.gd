@@ -61,7 +61,7 @@ const RESOLUTIONS: Array[Vector2i] = [
 var graphics: Dictionary = {
 	"preset": 3,
 	"render_scale": 1.0,
-	"antialiasing": 2,
+	"antialiasing": 3,
 	"shadows": 3,
 	"sdfgi": true,
 	"ssao": true,
@@ -183,7 +183,7 @@ func apply_preset(preset_idx: int) -> void:
 			graphics["view_distance"] = 0.82
 		3: # Висока
 			graphics["render_scale"] = 1.0
-			graphics["antialiasing"] = 2
+			graphics["antialiasing"] = 3
 			graphics["shadows"] = 3
 			graphics["sdfgi"] = false
 			graphics["ssao"] = true
@@ -194,7 +194,7 @@ func apply_preset(preset_idx: int) -> void:
 			graphics["view_distance"] = 1.0
 		4: # Ультра (Потужний ПК)
 			graphics["render_scale"] = 1.0
-			graphics["antialiasing"] = 2
+			graphics["antialiasing"] = 4
 			graphics["shadows"] = 3
 			graphics["sdfgi"] = true
 			graphics["ssao"] = true
@@ -205,7 +205,7 @@ func apply_preset(preset_idx: int) -> void:
 			graphics["view_distance"] = 1.25
 		5: # Кінематографічна (Максимум)
 			graphics["render_scale"] = 1.0
-			graphics["antialiasing"] = 3
+			graphics["antialiasing"] = 4
 			graphics["shadows"] = 4
 			graphics["sdfgi"] = true
 			graphics["ssao"] = true
@@ -276,6 +276,7 @@ func apply_graphics() -> void:
 		var scale := clampf(float(graphics.get("render_scale", 1.0)), 0.5, 1.5)
 		var compat := is_compatibility_renderer()
 		vp.use_taa = false
+		vp.use_debanding = true
 		vp.scaling_3d_scale = scale
 		if not compat and scale < 0.99:
 			vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR2
@@ -365,13 +366,13 @@ func apply_to_environment(env: Environment) -> void:
 		env.sdfgi_min_cell_size = 0.45
 
 		env.ssao_enabled = bool(graphics.get("ssao", true))
-		env.ssao_radius = 1.6
-		env.ssao_intensity = 1.45
+		env.ssao_radius = 1.15
+		env.ssao_intensity = 1.0
 
 		env.ssil_enabled = (preset_idx >= 3)
-		env.ssil_radius = 4.5
-		env.ssil_intensity = 0.90
-		env.ssil_sharpness = 0.92
+		env.ssil_radius = 3.8
+		env.ssil_intensity = 0.42
+		env.ssil_sharpness = 0.96
 		env.ssil_normal_rejection = 1.0
 
 		env.ssr_enabled = bool(graphics.get("ssr", true))

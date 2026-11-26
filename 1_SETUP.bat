@@ -79,7 +79,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0_fetch_assets.ps1" "%G
 if errorlevel 1 goto :FAIL_END
 
 if exist "%GAME_DIR%\config.cfg" goto :CONFIG_OK
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$cfg = @('[graphics]','preset=3','render_scale=1.0','antialiasing=2','shadows=3','sdfgi=true','ssao=true','ssr=true','volumetric_fog=true','glow=true','foliage_density=1.0','view_distance=1.0','weather_mode=0','','[display]','width=1920','height=1080','window_mode=0','vsync=1','max_fps=0','','[audio]','master_volume=0.8') -join \"`r`n\"; [IO.File]::WriteAllText('%GAME_DIR%\config.cfg', $cfg + \"`r`n\", [Text.UTF8Encoding]::new($false))"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$cfg = @('[graphics]','preset=3','render_scale=1.0','antialiasing=3','shadows=3','sdfgi=true','ssao=true','ssr=true','volumetric_fog=true','glow=true','foliage_density=1.0','view_distance=1.0','weather_mode=0','','[display]','width=1920','height=1080','window_mode=0','vsync=1','max_fps=0','','[audio]','master_volume=0.8') -join \"`r`n\"; [IO.File]::WriteAllText('%GAME_DIR%\config.cfg', $cfg + \"`r`n\", [Text.UTF8Encoding]::new($false))"
 :CONFIG_OK
 echo [OK] Config ready at game\config.cfg
 

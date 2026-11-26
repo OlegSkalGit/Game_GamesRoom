@@ -35,12 +35,17 @@ func _run_checks() -> void:
 
 	# 1. ConfigManager & game/config.cfg root check
 	var cfg_path := ConfigManager.get_config_path()
+	var prev_cfg_gfx: Dictionary = ConfigManager.graphics.duplicate()
 	if not _check(cfg_path.ends_with("game/config.cfg") or cfg_path.ends_with("game\\config.cfg"), "Config must live in game/ root: " + cfg_path): return
 	for preset_idx in range(ConfigManager.PRESET_NAMES.size()):
 		ConfigManager.apply_preset(preset_idx)
 		if not _check(int(ConfigManager.graphics["preset"]) == preset_idx, "Preset mismatch"): return
 	ConfigManager.apply_preset(3)
+	if not _check(int(ConfigManager.graphics["antialiasing"]) >= 3, "High preset must use sharp MSAA (>=3), not blurry TAA"): return
 	if not _check(FileAccess.file_exists(cfg_path), "config.cfg was not saved to game/ root"): return
+	ConfigManager.graphics = prev_cfg_gfx
+	ConfigManager.apply_graphics()
+	ConfigManager.save_config()
 	print("[PASS] ConfigManager presets & game/config.cfg")
 
 	# 2. Load Main scene cleanly
@@ -188,6 +193,7 @@ func _run_checks() -> void:
 	if not _check(host.open_game("python3d"), "Failed to open python3d"): return
 	var py_g = host.get_active_game()
 	if not _check(py_g != null and py_g._enemies.size() >= 2, "Python 3D AI enemies missing"): return
+	if not _check(py_g._sv != null and py_g._sv_rect != null and py_g._sv.msaa_3d == Viewport.MSAA_4X and not py_g._sv.use_taa, "Python 3D crisp MSAA/SubViewport decoupling missing"): return
 	if not _check(ResourceLoader.exists("res://assets/textures/python3d/snake_scales.png"), "Python 3D texture snake_scales.png missing"): return
 	py_g._t_immune = 0.0
 	py_g.handle_input_event(func_make_key(KEY_D, true))

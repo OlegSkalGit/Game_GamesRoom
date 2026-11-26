@@ -140,10 +140,6 @@ func _build_ui() -> void:
 	_viewport_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_viewport_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_viewport_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var reveal_mat := ShaderMaterial.new()
-	reveal_mat.shader = load("res://shaders/minigame_reveal.gdshader") as Shader
-	reveal_mat.set_shader_parameter("reveal", 1.0)
-	_viewport_container.material = reveal_mat
 	frame_panel.add_child(_viewport_container)
 
 	_subviewport = SubViewport.new()
@@ -190,11 +186,19 @@ func open_game(game_id: String) -> bool:
 	visible = true
 	_root_panel.modulate.a = 1.0
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	if _viewport_container.material is ShaderMaterial:
-		var rm := _viewport_container.material as ShaderMaterial
-		rm.set_shader_parameter("reveal", 0.25)
-		var tw := create_tween()
-		tw.tween_method(func(v: float): rm.set_shader_parameter("reveal", v), 0.25, 1.0, 0.55)
+	var rm := ShaderMaterial.new()
+	rm.shader = load("res://shaders/minigame_reveal.gdshader") as Shader
+	rm.set_shader_parameter("reveal", 0.25)
+	_viewport_container.material = rm
+	var tw := create_tween()
+	tw.tween_method(func(v: float):
+		if is_instance_valid(_viewport_container) and _viewport_container.material == rm:
+			rm.set_shader_parameter("reveal", v)
+	, 0.25, 1.0, 0.50)
+	tw.finished.connect(func():
+		if is_instance_valid(_viewport_container):
+			_viewport_container.material = null
+	)
 	return true
 
 

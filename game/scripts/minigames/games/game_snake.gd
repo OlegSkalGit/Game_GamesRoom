@@ -9,8 +9,8 @@ const ARENA_HALF_X := 11.5
 const ARENA_HALF_Z := 7.6
 const SEG_SPACING := 0.50
 
-var _sv_cont: SubViewportContainer
 var _sv: SubViewport
+var _sv_rect: TextureRect
 var _world3d: Node3D
 var _hud: Control
 
@@ -50,6 +50,8 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	if _sv_rect:
+		_sv_rect.texture = null
 	if _world3d:
 		_clear_dynamic_nodes()
 		_world3d.free()
@@ -57,17 +59,28 @@ func _exit_tree() -> void:
 
 
 func _build_3d_viewport() -> void:
-	_sv_cont = SubViewportContainer.new()
-	_sv_cont.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_sv_cont.stretch = true
-	_sv_cont.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_sv_cont)
-
 	_sv = SubViewport.new()
-	_sv.size = Vector2i(640, 400)
+	if DisplayServer.get_name() == "headless":
+		_sv.size = Vector2i(640, 400)
+	else:
+		var win_sz := DisplayServer.window_get_size()
+		var target_h := clampi(int(float(maxi(win_sz.y, 1080)) * 0.88), 1100, 1500)
+		_sv.size = Vector2i(int(round(float(target_h) * 1.6)), target_h)
 	_sv.own_world_3d = true
+	_sv.msaa_3d = Viewport.MSAA_4X
+	_sv.use_taa = false
+	_sv.use_debanding = true
 	_sv.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	_sv_cont.add_child(_sv)
+	add_child(_sv)
+
+	_sv_rect = TextureRect.new()
+	_sv_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_sv_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_sv_rect.stretch_mode = TextureRect.STRETCH_SCALE
+	_sv_rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_sv_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_sv_rect.texture = _sv.get_texture()
+	add_child(_sv_rect)
 
 	_world3d = Node3D.new()
 	_sv.add_child(_world3d)

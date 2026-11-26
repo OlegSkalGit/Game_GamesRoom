@@ -188,8 +188,8 @@ static func build_world(world: Node3D, env: Environment, key_light: DirectionalL
 	env.fog_enabled = true
 	env.fog_mode = Environment.FOG_MODE_DEPTH
 	env.fog_light_color = bg_col
-	env.fog_depth_begin = 68.0
-	env.fog_depth_end = 215.0
+	env.fog_depth_begin = 95.0
+	env.fog_depth_end = 260.0
 	key_light.light_energy = 1.45
 	rim_light.light_energy = 0.55
 
