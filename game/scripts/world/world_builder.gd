@@ -28,15 +28,21 @@ var _rock_mms: Array[MultiMeshInstance3D] = []
 var _reed_mm: MultiMeshInstance3D
 var _tree_mms: Array[MultiMeshInstance3D] = []
 var _weather_orb: MeshInstance3D
+var _track_spatial: Dictionary = {}
+var _baked_track_heights: PackedFloat32Array = PackedFloat32Array()
 
 
 func build_world(player: Node3D) -> void:
 	_init_noises()
+	race_track = RaceTrackScript.new()
+	race_track.name = "MountainRaceTrack"
+	race_track.prebuild_frames()
+	_index_track_spatial()
+
 	_build_sky3d()
 	_build_terrain3d(player)
 
-	race_track = RaceTrackScript.new()
-	race_track.name = "MountainRaceTrack"
+	race_track.terrain_height_fn = Callable(self, "sample_height")
 	add_child(race_track)
 
 	_build_lakes_and_rocks()
@@ -107,6 +113,20 @@ static func estimate_mountain_base(x: float, z: float) -> float:
 	return 1.5 + rim * rim * 26.0
 
 
+func _index_track_spatial() -> void:
+	_track_spatial.clear()
+	if race_track == null or race_track.frames.is_empty():
+		return
+	for idx: int in range(race_track.frames.size()):
+		var fp: Vector3 = race_track.frames[idx]["pos"]
+		var cx := int(floor(fp.x / 16.0))
+		var cz := int(floor(fp.z / 16.0))
+		var key := Vector2i(cx, cz)
+		if not _track_spatial.has(key):
+			_track_spatial[key] = []
+		(_track_spatial[key] as Array).append(fp)
+
+
 func _is_near_road_or_track(x: float, z: float, margin: float = 4.5) -> bool:
 	if absf(x) < 23.5 and absf(z) < 13.5:
 		return true
@@ -114,16 +134,42 @@ func _is_near_road_or_track(x: float, z: float, margin: float = 4.5) -> bool:
 		return true
 	if Vector2(x + 16.0, z - 68.0).length() < 16.0 + margin:
 		return true
-	if race_track and not race_track.frames.is_empty():
-		var p2 := Vector2(x, z)
-		for idx: int in range(0, race_track.frames.size(), 2):
-			var fp: Vector3 = race_track.frames[idx]["pos"]
-			if Vector2(fp.x, fp.z).distance_to(p2) < 6.5 + margin:
-				return true
+	if not _track_spatial.is_empty():
+		var cx := int(floor(x / 16.0))
+		var cz := int(floor(z / 16.0))
+		var lim := 7.6 + margin
+		var lim2 := lim * lim
+		for ox: int in [-1, 0, 1]:
+			for oz: int in [-1, 0, 1]:
+				var key := Vector2i(cx + ox, cz + oz)
+				if not _track_spatial.has(key):
+					continue
+				for fp: Vector3 in _track_spatial[key]:
+					var dx := fp.x - x
+					var dz := fp.z - z
+					if dx * dx + dz * dz < lim2:
+						return true
 	return false
 
 
 func sample_height(x: float, z: float) -> float:
+	if _baked_track_heights.size() == 512 * 512:
+		var fx := clampf(x + TERRAIN_HALF, 0.0, 510.999)
+		var fz := clampf(z + TERRAIN_HALF, 0.0, 510.999)
+		var ix := int(floor(fx))
+		var iz := int(floor(fz))
+		var tx := fx - float(ix)
+		var tz := fz - float(iz)
+		var r0 := iz * 512 + ix
+		var h00 := _baked_track_heights[r0]
+		var h10 := _baked_track_heights[r0 + 1]
+		var h01 := _baked_track_heights[r0 + 512]
+		var h11 := _baked_track_heights[r0 + 513]
+		return lerpf(lerpf(h00, h10, tx), lerpf(h01, h11, tx), tz)
+	return _sample_procedural_height(x, z)
+
+
+func _sample_procedural_height(x: float, z: float) -> float:
 	var h := 4.8
 	h += _noise_hills.get_noise_2d(x, z) * 9.5
 	h += _noise_detail.get_noise_2d(x, z) * 1.7
@@ -234,9 +280,10 @@ func _build_sky3d() -> void:
 	_reflection_probe.size = Vector3(540.0, 140.0, 540.0)
 	_reflection_probe.position = Vector3(0.0, 28.0, 0.0)
 	_reflection_probe.update_mode = ReflectionProbe.UPDATE_ONCE
+	_reflection_probe.box_projection = true
 	_reflection_probe.ambient_mode = ReflectionProbe.AMBIENT_ENVIRONMENT
-	_reflection_probe.intensity = 0.95
-	_reflection_probe.enable_shadows = false
+	_reflection_probe.intensity = 1.0
+	_reflection_probe.enable_shadows = int(ConfigManager.graphics.get("shadows", 3)) >= 2
 	add_child(_reflection_probe)
 
 
@@ -376,12 +423,15 @@ func _build_terrain3d(player: Node3D) -> void:
 	var res := 512
 	var h_img := Image.create(res, res, false, Image.FORMAT_RF)
 	var c_img := Image.create(res, res, false, Image.FORMAT_RGBA8)
+	var h_arr := PackedFloat32Array()
+	h_arr.resize(res * res)
 
 	for pz in range(res):
 		var wz := -TERRAIN_HALF + float(pz)
 		for px in range(res):
 			var wx := -TERRAIN_HALF + float(px)
-			var h := sample_height(wx, wz)
+			var h := _sample_procedural_height(wx, wz)
+			h_arr[pz * res + px] = h
 			h_img.set_pixel(px, pz, Color(h, 0.0, 0.0, 1.0))
 
 			var col := Color(0.95, 1.0, 0.90, 0.72)
@@ -393,9 +443,58 @@ func _build_terrain3d(player: Node3D) -> void:
 				col = Color(0.82, 0.82, 0.80, 0.82)
 			c_img.set_pixel(px, pz, col)
 
+	_grade_terrain_under_track(h_arr, h_img, c_img, res)
+	_baked_track_heights = h_arr
+
 	var imgs: Array[Image] = [h_img, null, c_img]
 	terrain.data.import_images(imgs, Vector3(-TERRAIN_HALF, 0.0, -TERRAIN_HALF), 0.0, 1.0)
+	_apply_terrain_track_cleanup(res, sand_pair, floor_pair)
 
+
+func _grade_terrain_under_track(h_arr: PackedFloat32Array, h_img: Image, c_img: Image, res: int) -> void:
+	if race_track == null or race_track.frames.is_empty():
+		return
+	var n: int = race_track.frames.size()
+	for idx: int in range(0, n, 2):
+		var f: Dictionary = race_track.frames[idx]
+		if bool(f.get("is_loop", false)):
+			var lu := float(f.get("loop_u", 0.0))
+			if lu > 0.12 and lu < 0.88:
+				continue
+		var fp: Vector3 = f["pos"]
+		var r_vec: Vector3 = f["right"]
+		var w_half := float(f.get("width", 10.6)) * 0.5
+		var edge_drop := absf(r_vec.y) * w_half
+		var clear_y := fp.y - edge_drop - 1.15
+		var min_px := clampi(int(floor(fp.x + TERRAIN_HALF - 14.0)), 1, res - 2)
+		var max_px := clampi(int(ceil(fp.x + TERRAIN_HALF + 14.0)), 1, res - 2)
+		var min_pz := clampi(int(floor(fp.z + TERRAIN_HALF - 14.0)), 1, res - 2)
+		var max_pz := clampi(int(ceil(fp.z + TERRAIN_HALF + 14.0)), 1, res - 2)
+		for pz: int in range(min_pz, max_pz + 1):
+			var wz := -TERRAIN_HALF + float(pz)
+			var dz := wz - fp.z
+			for px: int in range(min_px, max_px + 1):
+				var wx := -TERRAIN_HALF + float(px)
+				var dx := wx - fp.x
+				var d := sqrt(dx * dx + dz * dz)
+				if d > 14.0:
+					continue
+				var cell_i := pz * res + px
+				var cur_h := h_arr[cell_i]
+				if cur_h <= clear_y:
+					continue
+				var blend := clampf((d - 6.6) / 7.4, 0.0, 1.0)
+				var sb := blend * blend * (3.0 - 2.0 * blend)
+				var cap_h := lerpf(clear_y, cur_h, sb)
+				if cap_h < cur_h:
+					var safe_h := maxf(cap_h, WATER_LEVEL + 0.15) if cur_h > WATER_LEVEL + 0.15 else cap_h
+					h_arr[cell_i] = safe_h
+					h_img.set_pixel(px, pz, Color(safe_h, 0.0, 0.0, 1.0))
+					if d < 9.5:
+						c_img.set_pixel(px, pz, Color(0.68, 0.66, 0.62, 0.85))
+
+
+func _apply_terrain_track_cleanup(res: int, sand_pair: Array[Texture2D], floor_pair: Array[Texture2D]) -> void:
 	# Paint sandy shores and pine needle patches cleanly outside Casino footprint
 	if sand_pair.size() == 2 or floor_pair.size() == 2:
 		for pz in range(8, res - 8, 2):
@@ -769,6 +868,10 @@ func _build_cobblestone_and_trails() -> void:
 		cobble_mat.normal_enabled = true
 		cobble_mat.normal_texture = tex_norm
 		cobble_mat.normal_scale = 0.8
+	var tex_rough := load("res://assets/textures/pbr/marble_01/rough.jpg") as Texture2D
+	if tex_rough:
+		cobble_mat.roughness_texture = tex_rough
+		cobble_mat.roughness = 0.95
 
 	var steps := 92
 	var road_half_w := 2.3
@@ -1236,12 +1339,17 @@ func _apply_graphics_settings() -> void:
 	if sky3d:
 		if sky3d.sun:
 			sky3d.sun.shadow_enabled = shadow_tier > 0
-			sky3d.sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS if preset_idx <= 4 else DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
-			sky3d.sun.directional_shadow_max_distance = 115.0 * dist_scale
+			sky3d.sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS if shadow_tier >= 2 else DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+			sky3d.sun.directional_shadow_blend_splits = shadow_tier >= 2
+			sky3d.sun.directional_shadow_max_distance = 260.0 * dist_scale
 			sky3d.sun.directional_shadow_fade_start = 0.85
+			sky3d.sun.shadow_bias = 0.032
+			sky3d.sun.shadow_normal_bias = 1.15
 		if sky3d.moon:
 			sky3d.moon.shadow_enabled = shadow_tier >= 2
 		if sky3d.sky:
 			sky3d.clouds_enabled = preset_idx > 0
 		if sky3d.environment:
 			ConfigManager.apply_to_environment(sky3d.environment)
+	if is_instance_valid(_reflection_probe):
+		_reflection_probe.enable_shadows = shadow_tier >= 2

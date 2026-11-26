@@ -180,6 +180,21 @@ func play_race_lap() -> void:
 	play_tone(784.0, 0.18, "triangle", 1046.5, 0.22, 0.0, 0.20)
 
 
+func play_countdown_beep(is_go: bool = false) -> void:
+	if is_go:
+		play_tone(880.0, 0.26, "saw", 987.7, 0.24, 0.0, 0.0)
+		play_tone(1318.5, 0.34, "triangle", 1567.9, 0.22, 0.0, 0.02)
+	else:
+		play_tone(440.0, 0.16, "triangle", 440.0, 0.20, 0.0, 0.0)
+		play_tone(220.0, 0.12, "sine", 220.0, 0.12, 0.0, 0.0)
+
+
+func play_race_finish() -> void:
+	var fan := [523.2, 659.2, 784.0, 1046.5, 1318.5]
+	for idx: int in range(fan.size()):
+		play_tone(fan[idx], 0.14 if idx < 4 else 0.42, "triangle", fan[idx] * 1.01, 0.22, 0.0, float(idx) * 0.09)
+
+
 func play_bird_song(pan: float = 0.0) -> void:
 	var f0 := randf_range(1750.0, 2650.0)
 	play_tone(f0, 0.075, "sine", f0 * 1.32, 0.11, pan, 0.0)
@@ -290,6 +305,11 @@ func play_paddle_hit(pitch_shift: float = 0.0) -> void:
 func play_brick_break() -> void:
 	play_tone(680.0, 0.07, "square", 440.0, 0.18)
 	play_tone(320.0, 0.06, "noise", 180.0, 0.12)
+
+
+func play_card_flip() -> void:
+	play_tone(520.0, 0.035, "noise", 820.0, 0.14)
+	play_tone(360.0, 0.03, "triangle", 480.0, 0.10, 0.0, 0.01)
 
 
 func play_laser() -> void:
@@ -495,8 +515,7 @@ func _fill_music_buffer(delta: float) -> void:
 
 
 func _get_minigame_melody(gid: String) -> Array[float]:
-	var base := gid.split("__")[0]
-	match base:
+	match gid:
 		"mario":
 			return [330.0, 330.0, 0.0, 330.0, 0.0, 262.0, 330.0, 392.0, 0.0, 196.0, 0.0, 262.0]
 		"tetris":
@@ -521,5 +540,15 @@ func _get_minigame_melody(gid: String) -> Array[float]:
 			return [220.0, 277.0, 330.0, 392.0, 440.0, 392.0, 330.0, 277.0]
 		"puzzle":
 			return [330.0, 392.0, 494.0, 587.0, 494.0, 440.0, 392.0, 330.0]
+		"match3":
+			return [392.0, 494.0, 587.0, 784.0, 587.0, 494.0, 440.0, 392.0]
+		"minesweeper":
+			return [220.0, 0.0, 262.0, 247.0, 220.0, 0.0, 196.0, 220.0]
+		"solitaire":
+			return [262.0, 330.0, 392.0, 494.0, 440.0, 392.0, 330.0, 294.0]
+		"flappy":
+			return [330.0, 392.0, 523.0, 440.0, 392.0, 523.0, 659.0, 523.0]
+		"sudoku":
+			return [247.0, 294.0, 370.0, 440.0, 370.0, 294.0, 247.0, 220.0]
 		_:
 			return [262.0, 330.0, 392.0, 330.0]

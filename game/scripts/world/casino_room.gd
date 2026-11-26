@@ -1,7 +1,7 @@
 class_name CasinoRoom
 extends Node3D
 
-# 19 unique games (+5 showcase gallery tripods) across Casino & 4-Room Underground Complex:
+# 24 completely unique games across Casino & 4-Room Underground Complex:
 # Main Hall (7), West Strategy Lounge (5), East Arcade Landing (1),
 # Basement Card Club (3), Basement Exhibition Hall Tripods (6), Wine Cellar Tripod (1), Vault Tripod (1)
 const PAINTING_SPECS: Array[Dictionary] = [
@@ -32,13 +32,13 @@ const PAINTING_SPECS: Array[Dictionary] = [
 	{"id": "2048", "title": "2048", "pos": Vector3(-3.3, -2.28, -4.4), "yaw": PI * 0.35, "easel": true},
 	{"id": "zuma", "title": "Зума", "pos": Vector3(-3.9, -2.28, 0.0), "yaw": PI * 0.50, "easel": true},
 	{"id": "puzzle", "title": "Пазли", "pos": Vector3(-3.3, -2.28, 4.4), "yaw": PI * 0.65, "easel": true},
-	{"id": "snake__gallery", "title": "Змійка 3D (Експонат)", "pos": Vector3(2.2, -2.28, -5.2), "yaw": -PI * 0.30, "easel": true},
-	{"id": "chess__gallery", "title": "Шахи (Експонат)", "pos": Vector3(2.2, -2.28, 5.2), "yaw": -PI * 0.70, "easel": true},
-	{"id": "mario__gallery", "title": "Маріо (Золотий Експонат)", "pos": Vector3(-0.6, -2.28, -6.5), "yaw": 0.0, "easel": true},
+	{"id": "match3", "title": "Самоцвіти", "pos": Vector3(2.2, -2.28, -5.2), "yaw": -PI * 0.30, "easel": true},
+	{"id": "minesweeper", "title": "Сапер", "pos": Vector3(2.2, -2.28, 5.2), "yaw": -PI * 0.70, "easel": true},
+	{"id": "solitaire", "title": "Косинка", "pos": Vector3(-0.6, -2.28, -6.5), "yaw": 0.0, "easel": true},
 
 	# Basement Room 3 (Wine Cellar Tripod) & Room 4 (Vault Tripod)
-	{"id": "pacman__gallery", "title": "Пак-Лабіринт (Ретро-стенд)", "pos": Vector3(-11.2, -2.28, -6.1), "yaw": -0.45, "easel": true},
-	{"id": "tanks__gallery", "title": "Танчики (Спецвипуск)", "pos": Vector3(-11.2, -2.28, 6.1), "yaw": PI + 0.45, "easel": true}
+	{"id": "flappy", "title": "Сокіл Долини", "pos": Vector3(-11.2, -2.28, -6.1), "yaw": -0.45, "easel": true},
+	{"id": "sudoku", "title": "Судоку", "pos": Vector3(-11.2, -2.28, 6.1), "yaw": PI + 0.45, "easel": true}
 ]
 
 var paintings: Array[Dictionary] = []
@@ -48,6 +48,8 @@ var _slot_levers: Array[Node3D] = []
 var _slot_pulls: Array[float] = [0.0, 0.0]
 var _disco_mode: bool = false
 var _disco_lights: Array[OmniLight3D] = []
+var _arch_shadow_lights: Array[OmniLight3D] = []
+var _casino_probe: ReflectionProbe
 var _preview_drawer_nodes: Array[Dictionary] = []
 var _searchlights: Array[Dictionary] = []
 var _preview_time: float = 0.0
@@ -66,6 +68,9 @@ func _ready() -> void:
 	_build_chandeliers()
 	_build_all_paintings()
 	_build_roof_searchlights()
+	_build_interior_reflection_probe()
+	ConfigManager.graphics_changed.connect(_apply_lighting_quality)
+	_apply_lighting_quality()
 
 
 func _mat(col: Color, rough: float = 0.7, metal: float = 0.0, emission: Color = Color.BLACK, emit_e: float = 0.0) -> StandardMaterial3D:
@@ -289,7 +294,7 @@ func _build_structure() -> void:
 	_add_box_body(self, Vector3(6.95, 0.10, 0.42), Vector3(0.0, 5.98, 9.45), marquee_glow, false)
 	_add_box_body(self, Vector3(6.95, 0.10, 0.42), Vector3(0.0, 4.92, 9.45), marquee_glow, false)
 	var sign_lbl := Label3D.new()
-	sign_lbl.text = "★ КАЗИНО • 19 ІГОР ★"
+	sign_lbl.text = "★ КАЗИНО • 24 ІГРИ ★"
 	sign_lbl.position = Vector3(0.0, 5.45, 9.66)
 	sign_lbl.pixel_size = 0.0085
 	sign_lbl.font_size = 56
@@ -366,8 +371,11 @@ func _build_west_wing() -> void:
 	l_west.light_color = Color(1.0, 0.90, 0.72)
 	l_west.light_energy = 3.2
 	l_west.omni_range = 19.0
-	l_west.shadow_enabled = false
+	l_west.omni_attenuation = 1.35
+	l_west.shadow_bias = 0.045
+	l_west.shadow_blur = 1.5
 	add_child(l_west)
+	_arch_shadow_lights.append(l_west)
 
 
 func _build_east_wing_and_stairs() -> void:
@@ -421,27 +429,57 @@ func _build_east_wing_and_stairs() -> void:
 		_add_box_body(self, Vector3(3.4, 0.02, run_len + 0.05), Vector3(14.5, sy + drop_h * 0.5 + 0.01, sz), runner_mat, false)
 		_add_box_body(self, Vector3(5.22, 0.025, 0.04), Vector3(14.5, sy + drop_h * 0.5 + 0.015, sz - run_len * 0.48), bronze_mat, false)
 
-	# Smooth collision ramp for effortless walking/sprinting on stairs without snagging!
-	var ramp_sb := StaticBody3D.new()
-	ramp_sb.name = "StairRampCollider"
-	var ramp_len := sqrt(8.0 * 8.0 + 4.0 * 4.0)
-	var slope := atan2(4.0, 8.0)
-	ramp_sb.position = Vector3(14.5, -2.0 - 0.12, 1.8)
-	ramp_sb.rotation.x = slope
-	var ramp_cs := CollisionShape3D.new()
-	var ramp_box := BoxShape3D.new()
-	ramp_box.size = Vector3(5.4, 0.24, ramp_len + 0.5)
-	ramp_cs.shape = ramp_box
-	ramp_sb.add_child(ramp_cs)
-	add_child(ramp_sb)
+	# Smooth collision ramp ending 0.42m before top landing + horizontal bridge over slab edge (zero capsule snag!)
+	_add_stair_ramp_collider("StairRampCollider", 14.5, 5.4, Vector2(-2.24, 0.064), Vector2(5.85, -4.00))
 
 	var l_east := OmniLight3D.new()
 	l_east.position = Vector3(14.5, 4.8, -3.5)
 	l_east.light_color = Color(1.0, 0.90, 0.72)
 	l_east.light_energy = 2.8
 	l_east.omni_range = 17.5
-	l_east.shadow_enabled = false
+	l_east.omni_attenuation = 1.35
+	l_east.shadow_bias = 0.045
+	l_east.shadow_blur = 1.5
 	add_child(l_east)
+	_arch_shadow_lights.append(l_east)
+
+
+func _add_stair_ramp_collider(node_name: String, x_pos: float, width: float, p_a: Vector2, p_b: Vector2) -> void:
+	# p_a / p_b are Vector2(z, top_surface_y); places ramp reaching hi.y 0.42m early + flat landing bridge across slab edge
+	var hi := p_a if p_a.y >= p_b.y else p_b
+	var lo := p_b if p_a.y >= p_b.y else p_a
+	var dir_to_lo := signf(lo.x - hi.x)
+	var bridge_z := hi.x + dir_to_lo * 0.42
+	var dz := lo.x - bridge_z
+	var dy := hi.y - lo.y
+	var seg_len := sqrt(dz * dz + dy * dy)
+	var thickness := 0.24
+	var rot_x := atan2(dy, dz) if dz >= 0.0 else -atan2(dy, -dz)
+	var normal := Vector3(0.0, cos(rot_x), sin(rot_x))
+	var mid := Vector3(x_pos, (hi.y + lo.y) * 0.5, (bridge_z + lo.x) * 0.5)
+
+	var sb := StaticBody3D.new()
+	sb.name = node_name
+	sb.position = mid - normal * (thickness * 0.5)
+	sb.rotation.x = rot_x
+	var cs := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(width, thickness, seg_len)
+	cs.shape = box
+	sb.add_child(cs)
+	add_child(sb)
+
+	# Flat collider bridge covering the 90-deg floor lip cleanly across hi.x..bridge_z
+	var br_len := 0.56
+	var br_sb := StaticBody3D.new()
+	br_sb.name = node_name + "_Bridge"
+	br_sb.position = Vector3(x_pos, hi.y - 0.08, (hi.x + bridge_z) * 0.5 - dir_to_lo * 0.05)
+	var br_cs := CollisionShape3D.new()
+	var br_box := BoxShape3D.new()
+	br_box.size = Vector3(width, 0.16, br_len)
+	br_cs.shape = br_box
+	br_sb.add_child(br_cs)
+	add_child(br_sb)
 
 
 func _build_basement_vault() -> void:
@@ -683,8 +721,13 @@ func _build_basement_vault() -> void:
 		bl.light_color = ls[1]
 		bl.light_energy = float(ls[2])
 		bl.omni_range = 13.5
+		bl.omni_attenuation = 1.35
+		bl.shadow_bias = 0.045
+		bl.shadow_blur = 1.5
 		bl.shadow_enabled = false
 		add_child(bl)
+		if absf(lp.x + 0.8) < 0.5 and lp.z > 0.0:
+			_arch_shadow_lights.append(bl)
 
 	# Stairwell Wall Sconce mounted cleanly on East wall (illuminates marble steps with NO floating fixtures!)
 	_add_box_body(self, Vector3(0.08, 0.24, 0.22), Vector3(18.76, -1.75, 1.8), bronze_mat, false)
@@ -725,19 +768,7 @@ func _build_mansard() -> void:
 		_add_box_body(self, Vector3(1.35, 0.02, run_len + 0.04), Vector3(18.55, sy + rise_h * 0.5 + 0.01, sz), runner_mat, false)
 		_add_box_body(self, Vector3(2.12, 0.025, 0.04), Vector3(18.55, sy + rise_h * 0.5 + 0.015, sz + run_len * 0.48), bronze_mat, false)
 
-	var mramp_sb := StaticBody3D.new()
-	mramp_sb.name = "MansardStairRampCollider"
-	var dz := z_start - z_end
-	var dy := 6.80 - 0.06
-	var r_len := sqrt(dz * dz + dy * dy)
-	mramp_sb.position = Vector3(18.55, 0.06 + dy * 0.5 - 0.12, (z_start + z_end) * 0.5)
-	mramp_sb.rotation.x = atan2(dy, dz)
-	var mramp_cs := CollisionShape3D.new()
-	var mramp_box := BoxShape3D.new()
-	mramp_box.size = Vector3(2.2, 0.24, r_len + 0.6)
-	mramp_cs.shape = mramp_box
-	mramp_sb.add_child(mramp_cs)
-	add_child(mramp_sb)
+	_add_stair_ramp_collider("MansardStairRampCollider", 18.55, 2.2, Vector2(-5.64, 6.805), Vector2(6.65, 0.06))
 
 	# Upper Mansard Staircase Sign & Side Railing along stairwell
 	var lbl_up := Label3D.new()
@@ -856,8 +887,12 @@ func _build_mansard() -> void:
 		ml.light_color = Color(1.0, 0.88, 0.68)
 		ml.light_energy = 2.4
 		ml.omni_range = 15.0
-		ml.shadow_enabled = false
+		ml.omni_attenuation = 1.35
+		ml.shadow_bias = 0.045
+		ml.shadow_blur = 1.5
 		add_child(ml)
+		if absf(mx - 3.0) < 0.5:
+			_arch_shadow_lights.append(ml)
 
 
 func _build_casino_centerpiece() -> void:
@@ -1057,9 +1092,12 @@ func _build_chandeliers() -> void:
 		light.light_color = Color(1.0, 0.88, 0.70)
 		light.light_energy = 2.65
 		light.omni_range = 17.5
-		light.shadow_enabled = false
+		light.omni_attenuation = 1.35
+		light.shadow_bias = 0.045
+		light.shadow_blur = 1.5
 		ch.add_child(light)
 		_disco_lights.append(light)
+		_arch_shadow_lights.append(light)
 
 
 func _build_all_paintings() -> void:
@@ -1249,6 +1287,32 @@ func _build_roof_searchlights() -> void:
 		})
 
 
+func _build_interior_reflection_probe() -> void:
+	_casino_probe = ReflectionProbe.new()
+	_casino_probe.name = "CasinoReflectionProbe"
+	_casino_probe.size = Vector3(44.0, 18.0, 22.0)
+	_casino_probe.position = Vector3(0.0, 4.5, 0.0)
+	_casino_probe.update_mode = ReflectionProbe.UPDATE_ONCE
+	_casino_probe.box_projection = true
+	_casino_probe.interior = true
+	_casino_probe.ambient_mode = ReflectionProbe.AMBIENT_COLOR
+	_casino_probe.ambient_color = Color(0.14, 0.12, 0.09)
+	_casino_probe.ambient_color_energy = 0.55
+	_casino_probe.intensity = 1.05
+	_casino_probe.enable_shadows = int(ConfigManager.graphics.get("shadows", 3)) >= 2
+	add_child(_casino_probe)
+
+
+func _apply_lighting_quality() -> void:
+	var shadow_tier := int(ConfigManager.graphics.get("shadows", 3))
+	var enable_arch_shadows := (shadow_tier >= 2)
+	for l: OmniLight3D in _arch_shadow_lights:
+		if is_instance_valid(l):
+			l.shadow_enabled = enable_arch_shadows
+	if is_instance_valid(_casino_probe):
+		_casino_probe.enable_shadows = enable_arch_shadows
+
+
 func set_highlighted_painting(painting_id: String) -> void:
 	for p in paintings:
 		var hm: StandardMaterial3D = p["highlight_mat"]
@@ -1354,8 +1418,39 @@ class PaintingCanvasDrawer extends Control:
 	func _draw() -> void:
 		var r := Rect2(Vector2.ZERO, size)
 		var f := ThemeDB.fallback_font
-		var gid := game_id.split("__")[0]
-		match gid:
+		match game_id:
+			"match3":
+				draw_rect(r, Color(0.06, 0.08, 0.14))
+				var gc := [Color(0.95, 0.22, 0.26), Color(0.22, 0.56, 0.98), Color(0.22, 0.86, 0.42), Color(0.98, 0.80, 0.16)]
+				for row in range(4):
+					for col in range(5):
+						draw_circle(Vector2(62 + col * 32, 34 + row * 30), 10.0, gc[(row + col) % gc.size()])
+			"minesweeper":
+				draw_rect(r, Color(0.09, 0.11, 0.14))
+				for row in range(4):
+					for col in range(6):
+						draw_rect(Rect2(44 + col * 28, 24 + row * 28, 25, 25), Color(0.26, 0.32, 0.38))
+				draw_circle(Vector2(142, 66), 8.0, Color(0.92, 0.22, 0.22))
+				draw_string(f, Vector2(78, 72), "2", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.32, 0.88, 0.42))
+			"solitaire":
+				draw_rect(r, Color(0.05, 0.24, 0.14))
+				for ci in range(4):
+					draw_rect(Rect2(36 + ci * 46, 36 + ci * 8, 42, 58), Color(0.97, 0.96, 0.92))
+					draw_string(f, Vector2(44 + ci * 46, 62 + ci * 8), ["A", "K", "Q", "J"][ci], HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.84, 0.14, 0.14) if ci % 2 == 0 else Color.BLACK)
+			"flappy":
+				draw_rect(r, Color(0.18, 0.28, 0.52))
+				draw_rect(Rect2(150, 0, 28, 52), Color(0.16, 0.62, 0.28))
+				draw_rect(Rect2(150, 102, 28, 58), Color(0.16, 0.62, 0.28))
+				draw_circle(Vector2(78, 76 + sin(anim_t * 4.5) * 10.0), 11.0, Color(0.98, 0.76, 0.18))
+			"sudoku":
+				draw_rect(r, Color(0.06, 0.08, 0.13))
+				draw_rect(Rect2(60, 14, 136, 136), Color(0.84, 0.68, 0.28), false, 2.0)
+				for k in [1, 2]:
+					draw_line(Vector2(60 + k * 45, 14), Vector2(60 + k * 45, 150), Color(0.84, 0.68, 0.28), 2.0)
+					draw_line(Vector2(60, 14 + k * 45), Vector2(196, 14 + k * 45), Color(0.84, 0.68, 0.28), 2.0)
+				draw_string(f, Vector2(76, 46), "9", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.32, 0.90, 0.56))
+				draw_string(f, Vector2(120, 90), "5", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color.WHITE)
+				draw_string(f, Vector2(166, 134), "7", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.98, 0.84, 0.34))
 			"2048":
 				draw_rect(r, Color(0.14, 0.10, 0.08))
 				draw_rect(Rect2(56, 8, 144, 144), Color(0.24, 0.19, 0.15))

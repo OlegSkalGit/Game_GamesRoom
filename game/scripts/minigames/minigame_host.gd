@@ -22,7 +22,12 @@ const GAME_SCRIPTS: Dictionary = {
 	"poker": "res://scripts/minigames/games/game_poker.gd",
 	"2048": "res://scripts/minigames/games/game_2048.gd",
 	"zuma": "res://scripts/minigames/games/game_zuma.gd",
-	"puzzle": "res://scripts/minigames/games/game_puzzle.gd"
+	"puzzle": "res://scripts/minigames/games/game_puzzle.gd",
+	"match3": "res://scripts/minigames/games/game_match3.gd",
+	"minesweeper": "res://scripts/minigames/games/game_minesweeper.gd",
+	"solitaire": "res://scripts/minigames/games/game_solitaire.gd",
+	"flappy": "res://scripts/minigames/games/game_flappy.gd",
+	"sudoku": "res://scripts/minigames/games/game_sudoku.gd"
 }
 
 var _root_panel: ColorRect
@@ -146,12 +151,11 @@ func _build_ui() -> void:
 
 
 func open_game(game_id: String) -> bool:
-	var base_id := game_id.split("__")[0]
-	if not GAME_SCRIPTS.has(base_id):
+	if not GAME_SCRIPTS.has(game_id):
 		return false
 	close_game()
 
-	var script_res := load(str(GAME_SCRIPTS[base_id])) as GDScript
+	var script_res := load(str(GAME_SCRIPTS[game_id])) as GDScript
 	if script_res == null:
 		return false
 	var inst := script_res.new() as MinigameBase

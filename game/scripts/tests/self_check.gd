@@ -12,6 +12,13 @@ func _ready() -> void:
 	_run_checks()
 
 
+func func_make_key(phys: int, is_pressed: bool) -> InputEventKey:
+	var ev := InputEventKey.new()
+	ev.physical_keycode = phys
+	ev.pressed = is_pressed
+	return ev
+
+
 func _check(cond: bool, msg: String) -> bool:
 	if not cond:
 		push_error("[FAIL] " + msg)
@@ -52,7 +59,7 @@ func _run_checks() -> void:
 	if not _check(world.casino_room != null, "CasinoRoom missing"): return
 	if not _check(world.weather != null, "WeatherController missing"): return
 	if not _check(world.wildlife != null, "WildlifeController missing"): return
-	if not _check(world.race_track != null and world.race_track.rivals.size() == 3, "MountainRaceTrack or AI rivals missing"): return
+	if not _check(world.race_track != null and world.race_track.rivals.size() == 4, "MountainRaceTrack or 4 AI rivals missing"): return
 	if not _check(menu.visible == true, "Menu must be open on first start"): return
 	var intro = main.get_node_or_null("IntroSplash")
 	if not _check(intro != null and intro.is_playing(), "IntroSplash missing on startup"): return
@@ -77,8 +84,15 @@ func _run_checks() -> void:
 	if not _check(absf(t3d_h - 6.0) < 0.35, "Terrain3D imported height mismatch: %s" % t3d_h): return
 	print("[PASS] WorldBuilder (Sky3D, Terrain3D, Lakes, Weather, Wildlife)")
 
-	# 3. Verify all unique games & exhibition tripods (including Basement Card Club, Exhibition Hall, Cellar & Vault)
-	if not _check(world.casino_room.paintings.size() == CasinoRoom.PAINTING_SPECS.size(), "Expected %d paintings/tripods, got %d" % [CasinoRoom.PAINTING_SPECS.size(), world.casino_room.paintings.size()]): return
+	# 3. Verify all 24 games & paintings/tripods are strictly unique (zero duplicates!)
+	if not _check(world.casino_room.paintings.size() == MinigameHost.GAME_SCRIPTS.size(), "Expected %d unique paintings/tripods, got %d" % [MinigameHost.GAME_SCRIPTS.size(), world.casino_room.paintings.size()]): return
+	var seen_ids := {}
+	for p in world.casino_room.paintings:
+		var pid := str(p["id"])
+		var ptitle := str(p["title"])
+		if not _check(not seen_ids.has(pid), "Duplicate painting ID found: " + pid): return
+		if not _check(not ptitle.contains("Експонат"), "Forbidden word in title: " + ptitle): return
+		seen_ids[pid] = true
 	for gid_key: String in MinigameHost.GAME_SCRIPTS.keys():
 		if not _check(not world.casino_room.get_painting_by_id(gid_key).is_empty(), "Missing painting/tripod for game: " + gid_key): return
 	if not _check(world.casino_room.get_node_or_null("StairRampCollider") != null, "Basement stair ramp missing"): return
@@ -143,9 +157,115 @@ func _run_checks() -> void:
 	await get_tree().create_timer(0.9).timeout
 	if not _check(not host.is_active(), "Exit from minigame did not return to room"): return
 	if not _check(player.controls_enabled == true, "Player controls not restored after exiting painting"): return
-	print("[PASS] Player Casino spawn, painting targeting, physical KEY_E+Shift dive & exit")
 
-	# 5. AudioSfx API & music/ambient modes smoke check
+	# Verify walking cleanly up Basement stairs & Mansard stairs WITHOUT jumping
+	player.global_position = Vector3(14.5, 2.08, 6.6)
+	player.velocity = Vector3.ZERO
+	player._yaw = 0.0
+	player._pitch = 0.0
+	Input.parse_input_event(func_make_key(KEY_W, true))
+	for _s in range(150):
+		await get_tree().physics_frame
+	Input.parse_input_event(func_make_key(KEY_W, false))
+	if not _check(player.global_position.z < -2.6 and player.global_position.y >= 6.08, "Player got stuck climbing Basement stairs at z=%.2f y=%.2f" % [player.global_position.z, player.global_position.y]): return
+
+	player.global_position = Vector3(18.55, 6.14, 7.1)
+	player.velocity = Vector3.ZERO
+	player._yaw = 0.0
+	Input.parse_input_event(func_make_key(KEY_W, true))
+	for _s in range(190):
+		await get_tree().physics_frame
+	Input.parse_input_event(func_make_key(KEY_W, false))
+	if not _check(player.global_position.z < -6.0 and player.global_position.y >= 12.80, "Player got stuck climbing Mansard stairs at z=%.2f y=%.2f" % [player.global_position.z, player.global_position.y]): return
+	print("[PASS] Player Casino spawn, painting targeting, physical KEY_E+Shift dive & smooth stair climb")
+
+	# 5. Lighting, Shadows, PBR Materials & Multi-Coil Spiral Perimeter Race Verification
+	if not _check(world.sky3d.sun.shadow_enabled and world.sky3d.sun.directional_shadow_max_distance >= 200.0, "Directional shadows must cover perimeter"): return
+	if not _check(world.casino_room.get_node_or_null("CasinoReflectionProbe") != null, "CasinoReflectionProbe missing"): return
+	var road_mi := world.race_track.get_node_or_null("RaceTrackRoadMesh") as MeshInstance3D
+	if not _check(road_mi != null and road_mi.material_override is StandardMaterial3D, "Track road PBR material missing"): return
+	var road_pbr := road_mi.material_override as StandardMaterial3D
+	if not _check(road_pbr.normal_enabled and road_pbr.roughness_texture != null, "Track asphalt normal/roughness maps missing"): return
+
+	var rt = world.race_track
+	var max_rx := 0.0
+	var max_rz := 0.0
+	var min_rad := 999.0
+	var max_rad := 0.0
+	var min_y := 999.0
+	var max_y := -999.0
+	var max_bank := 0.0
+	var loop_cnt := 0
+	var prev_in_loop := false
+	for rf in rt.frames:
+		var rp: Vector3 = rf["pos"]
+		max_rx = maxf(max_rx, absf(rp.x))
+		max_rz = maxf(max_rz, absf(rp.z))
+		var r2 := Vector2(rp.x, rp.z).length()
+		min_rad = minf(min_rad, r2)
+		max_rad = maxf(max_rad, r2)
+		min_y = minf(min_y, rp.y)
+		max_y = maxf(max_y, rp.y)
+		max_bank = maxf(max_bank, absf(float(rf["bank_deg"])))
+		var in_lp := bool(rf["is_loop"])
+		if in_lp and not prev_in_loop:
+			loop_cnt += 1
+		prev_in_loop = in_lp
+	if not _check(max_rx >= 220.0 and max_rz >= 220.0, "Track must hug valley edge, got max_x=%.1f max_z=%.1f" % [max_rx, max_rz]): return
+	if not _check(loop_cnt >= 4, "Expected >= 4 vertical loops, got %d" % loop_cnt): return
+	if not _check((max_rad - min_rad) >= 120.0 and (max_y - min_y) >= 40.0, "Expected multi-coil spiral elevation variation"): return
+	if not _check(max_bank >= 20.0, "Expected banked turns proportional to curvature"): return
+
+	# Verify 3-2-1 Countdown, Simultaneous Launch, Slow Loop Entry & 3-Lap Completion
+	main._start_race()
+	var car = main._race_car
+	var f1_body: Node3D = car._car_mesh.get_node_or_null("BodyPivot") as Node3D
+	if not _check(f1_body != null and f1_body.get_child_count() >= 20, "F1 car mesh missing detailed parts"): return
+	if not _check(car._phase == 0 and main._race_banner_lbl.text == "3", "Expected 3-2-1 countdown start"): return
+	for rv in rt.rivals:
+		if not _check(float(rv["cur_spd"]) == 0.0 and float(rv["progress_dist"]) < 0.0, "AI rivals must wait on grid at countdown"): return
+	for _t in range(195): # 3.25s at 60Hz -> transitions 3 -> 2 -> 1 -> GO!
+		rt._process(1.0 / 60.0)
+		car._physics_process(1.0 / 60.0)
+	if not _check(car._phase == 1, "Race did not transition to RACING after 3-2-1 countdown"): return
+	for rv in rt.rivals:
+		if not _check(float(rv["cur_spd"]) > 5.0, "AI rival did not launch simultaneously on GO"): return
+
+	# Test slow-speed entry & climb through a vertical loop + smooth steering left/right
+	var first_loop_s := 0.0
+	for rf in rt.frames:
+		if bool(rf["is_loop"]):
+			first_loop_s = float(rf["s"])
+			break
+	car._track_s = fposmod(first_loop_s - 4.0, rt.total_length)
+	car._speed = 8.5
+	car._airborne = false
+	Input.parse_input_event(func_make_key(KEY_W, true))
+	Input.parse_input_event(func_make_key(KEY_A, true))
+	var saw_loop := false
+	for _s in range(180):
+		car._physics_process(1.0 / 60.0)
+		var fcur: Dictionary = rt.sample_at_s(car._track_s)
+		if bool(fcur.get("is_loop", false)):
+			saw_loop = true
+	Input.parse_input_event(func_make_key(KEY_A, false))
+	Input.parse_input_event(func_make_key(KEY_W, false))
+	if not _check(saw_loop and car._speed >= 8.5, "Car failed smooth slow loop traversal"): return
+
+	# Verify 3 full laps counting cleanly
+	car._progress_dist = rt.total_length * 1.05
+	car._physics_process(1.0 / 60.0)
+	if not _check(car._lap == 2, "Expected Lap 2/3, got %d" % car._lap): return
+	car._progress_dist = rt.total_length * 2.05
+	car._physics_process(1.0 / 60.0)
+	if not _check(car._lap == 3, "Expected Lap 3/3, got %d" % car._lap): return
+	car._progress_dist = rt.total_length * 3.02
+	car._physics_process(1.0 / 60.0)
+	if not _check(car._phase == 2 and car._finished_rank >= 1, "Expected Race Finish after 3 full laps"): return
+	main._exit_race()
+	print("[PASS] Lighting/PBR/Shadows + Multi-Coil Perimeter Race (4 loops, 3-2-1, 4 AI rivals, 3 laps)")
+
+	# 6. AudioSfx API & music/ambient modes smoke check
 	AudioSfx.set_ambient_state(0.5, 0.7, 0.0, 0.8, 0.0)
 	AudioSfx.set_music_mode("casino")
 	AudioSfx.set_music_mode("minigame", "mario")
@@ -157,6 +277,9 @@ func _run_checks() -> void:
 	AudioSfx.play_explosion()
 	AudioSfx.play_waka()
 	AudioSfx.play_whistle()
+	AudioSfx.play_countdown_beep(false)
+	AudioSfx.play_countdown_beep(true)
+	AudioSfx.play_race_finish()
 	print("[PASS] AudioSfx world & minigame sound API")
 
 	main.queue_free()

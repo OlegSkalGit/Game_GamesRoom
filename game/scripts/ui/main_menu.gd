@@ -165,7 +165,7 @@ func _build_ui() -> void:
 	nav_vbox.add_child(title)
 
 	var subtitle := Label.new()
-	subtitle.text = "Галерея 19 ігор, гірська траса й квести"
+	subtitle.text = "Галерея 24 ігор, гірська траса й квести"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.add_theme_font_size_override("font_size", 14)
 	subtitle.add_theme_color_override("font_color", Color(0.75, 0.82, 0.77))

@@ -58,11 +58,18 @@ func _ready() -> void:
 
 	_lantern = SpotLight3D.new()
 	_lantern.light_color = Color(1.0, 0.92, 0.78)
-	_lantern.light_energy = 3.2
-	_lantern.spot_range = 28.0
+	_lantern.light_energy = 3.6
+	_lantern.spot_range = 32.0
 	_lantern.spot_angle = 36.0
+	_lantern.shadow_enabled = int(ConfigManager.graphics.get("shadows", 3)) >= 2
+	_lantern.shadow_bias = 0.04
+	_lantern.shadow_blur = 1.4
 	_lantern.visible = false
 	_camera.add_child(_lantern)
+	ConfigManager.graphics_changed.connect(func():
+		if is_instance_valid(_lantern):
+			_lantern.shadow_enabled = int(ConfigManager.graphics.get("shadows", 3)) >= 2
+	)
 
 
 func set_casino_room(room: CasinoRoom) -> void:

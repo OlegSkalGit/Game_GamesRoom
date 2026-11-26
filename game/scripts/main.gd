@@ -22,6 +22,8 @@ var _quest_hud_lbl: Label
 var _quest_journal_panel: PanelContainer
 var _quest_journal_lbl: Label
 var _race_hud_lbl: Label
+var _race_banner_panel: PanelContainer
+var _race_banner_lbl: Label
 var _toast_panel: PanelContainer
 var _toast_lbl: Label
 var _toast_t: float = 0.0
@@ -61,6 +63,8 @@ func _ready() -> void:
 	_race_car.setup(_world.race_track)
 	_race_car.exit_car_requested.connect(_exit_race)
 	_race_car.hud_updated.connect(func(txt: String): if _race_hud_lbl: _race_hud_lbl.text = txt)
+	_race_car.race_banner_updated.connect(_on_race_banner_updated)
+	_race_car.race_completed.connect(_on_race_completed)
 
 	_player.target_painting_changed.connect(_on_target_painting_changed)
 	_player.interact_painting_requested.connect(_on_interact_painting_requested)
@@ -223,6 +227,27 @@ func _build_hud() -> void:
 	_race_hud_lbl.add_theme_constant_override("shadow_offset_y", 1)
 	_race_hud_lbl.visible = false
 	_hud_layer.add_child(_race_hud_lbl)
+
+	# Bold Center Countdown ("3 - 2 - 1 - РУШ!") / Lap / Finish Banner
+	_race_banner_panel = PanelContainer.new()
+	_race_banner_panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_race_banner_panel.offset_left = -330
+	_race_banner_panel.offset_right = 330
+	_race_banner_panel.offset_top = 84
+	_race_banner_panel.offset_bottom = 186
+	_race_banner_panel.add_theme_stylebox_override("panel", jsb)
+	_race_banner_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_race_banner_panel.visible = false
+	_hud_layer.add_child(_race_banner_panel)
+	_race_banner_lbl = Label.new()
+	_race_banner_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_race_banner_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_race_banner_lbl.add_theme_font_size_override("font_size", 32)
+	_race_banner_lbl.add_theme_color_override("font_color", Color(1.0, 0.90, 0.32))
+	_race_banner_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.9))
+	_race_banner_lbl.add_theme_constant_override("shadow_offset_x", 2)
+	_race_banner_lbl.add_theme_constant_override("shadow_offset_y", 2)
+	_race_banner_panel.add_child(_race_banner_lbl)
 
 	# Top floating fun-gadget notification toast
 	_toast_panel = PanelContainer.new()
@@ -545,7 +570,6 @@ func _start_race() -> void:
 	_prompt_panel.visible = false
 	_race_hud_lbl.visible = true
 	_race_car.start_race()
-	AudioSfx.play_race_lap()
 
 
 func _exit_race() -> void:
@@ -554,12 +578,30 @@ func _exit_race() -> void:
 	_is_driving = false
 	_race_car.stop_race()
 	_race_hud_lbl.visible = false
+	if _race_banner_panel:
+		_race_banner_panel.visible = false
 	_player.global_position = Vector3(-16.0, 6.45, 63.5)
 	_player.velocity = Vector3.ZERO
 	_player.get_camera().current = true
 	_player.set_controls_active(true)
 	_crosshair.visible = true
 	_show_toast("Ви припаркувались біля зупинки траси!")
+
+
+func _on_race_banner_updated(text: String, color: Color, show: bool) -> void:
+	if _race_banner_panel == null or _race_banner_lbl == null:
+		return
+	_race_banner_panel.visible = show and _is_driving
+	_race_banner_lbl.text = text
+	_race_banner_lbl.add_theme_color_override("font_color", color)
+	_race_banner_lbl.add_theme_font_size_override("font_size", 46 if text.length() <= 5 else 24)
+
+
+func _on_race_completed(rank: int, _race_time: float) -> void:
+	if _quests:
+		var bonus := 250 if rank == 1 else (150 if rank <= 3 else 75)
+		_quests.add_chips(bonus)
+		_show_toast("🏁 Фініш 3 кіл (%d/5 місце)! +%d фішок" % [rank, bonus])
 
 
 func _on_interact_prop_requested(prop_id: String) -> void:
@@ -638,7 +680,7 @@ func _on_interact_painting_requested(painting_id: String) -> void:
 		return
 
 	if _quests:
-		_quests.record_any(painting_id.split("__")[0])
+		_quests.record_any(painting_id)
 
 	_transitioning = true
 	_active_painting_id = painting_id

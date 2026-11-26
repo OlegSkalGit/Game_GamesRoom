@@ -187,7 +187,7 @@ func apply_preset(preset_idx: int) -> void:
 			graphics["shadows"] = 3
 			graphics["sdfgi"] = false
 			graphics["ssao"] = true
-			graphics["ssr"] = false
+			graphics["ssr"] = true
 			graphics["volumetric_fog"] = true
 			graphics["glow"] = true
 			graphics["foliage_density"] = 1.0
@@ -309,15 +309,21 @@ func apply_graphics() -> void:
 	var shadow_sizes := [512, 1024, 2048, 4096, 6144]
 	var s_size: int = shadow_sizes[clampi(shadow_tier, 0, shadow_sizes.size() - 1)]
 	RenderingServer.directional_shadow_atlas_set_size(s_size, true)
+	if vp != null:
+		vp.positional_shadow_atlas_size = 4096 if shadow_tier >= 3 else (2048 if shadow_tier >= 1 else 512)
 	match shadow_tier:
 		0, 1:
 			RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_HARD)
+			RenderingServer.positional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_HARD)
 		2:
 			RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_SOFT_LOW)
+			RenderingServer.positional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_SOFT_LOW)
 		3:
 			RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_SOFT_MEDIUM)
+			RenderingServer.positional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_SOFT_MEDIUM)
 		_:
 			RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_SOFT_HIGH)
+			RenderingServer.positional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_SOFT_HIGH)
 
 	graphics_changed.emit()
 
@@ -328,20 +334,20 @@ func apply_to_environment(env: Environment) -> void:
 	var compat := is_compatibility_renderer()
 	var preset_idx := int(graphics.get("preset", 3))
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
-	env.tonemap_exposure = 0.94
-	env.tonemap_white = 6.0
+	env.tonemap_exposure = 0.96
+	env.tonemap_white = 6.5
 
 	env.adjustment_enabled = preset_idx >= 2
 	env.adjustment_brightness = 1.0
-	env.adjustment_contrast = 1.08
+	env.adjustment_contrast = 1.09
 	env.adjustment_saturation = 1.06
 
 	var use_glow := bool(graphics.get("glow", true))
 	env.glow_enabled = use_glow
 	if use_glow:
-		env.glow_intensity = 0.28
-		env.glow_bloom = 0.03
-		env.glow_hdr_threshold = 1.28
+		env.glow_intensity = 0.30
+		env.glow_bloom = 0.035
+		env.glow_hdr_threshold = 1.24
 
 	if compat:
 		env.sdfgi_enabled = false
@@ -354,17 +360,25 @@ func apply_to_environment(env: Environment) -> void:
 		env.sdfgi_enabled = use_gi
 		env.sdfgi_use_occlusion = true
 		env.sdfgi_read_sky_light = true
-		env.sdfgi_bounce_feedback = 0.45
+		env.sdfgi_bounce_feedback = 0.52
 		env.sdfgi_cascades = 3
 		env.sdfgi_min_cell_size = 0.45
 
 		env.ssao_enabled = bool(graphics.get("ssao", true))
-		env.ssao_radius = 1.2
-		env.ssao_intensity = 1.25
+		env.ssao_radius = 1.6
+		env.ssao_intensity = 1.45
 
-		env.ssil_enabled = false
+		env.ssil_enabled = (preset_idx >= 3)
+		env.ssil_radius = 4.5
+		env.ssil_intensity = 0.90
+		env.ssil_sharpness = 0.92
+		env.ssil_normal_rejection = 1.0
+
 		env.ssr_enabled = bool(graphics.get("ssr", true))
-		env.ssr_max_steps = 16 if preset_idx <= 4 else 24
+		env.ssr_max_steps = 20 if preset_idx <= 4 else 28
+		env.ssr_fade_in = 0.14
+		env.ssr_fade_out = 2.2
+		env.ssr_depth_tolerance = 0.28
 
 		env.volumetric_fog_enabled = bool(graphics.get("volumetric_fog", true))
 		env.volumetric_fog_density = 0.0014
