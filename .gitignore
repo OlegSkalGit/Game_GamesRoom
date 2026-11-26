@@ -1,0 +1,9 @@
+godot/
+_setup_tmp/
+.agents/
+game/.godot/
+game/addons/
+game/assets/
+game/config.cfg
+*.tmp
+*.log

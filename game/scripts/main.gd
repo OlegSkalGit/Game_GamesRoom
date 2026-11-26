@@ -1,0 +1,705 @@
+extends Node3D
+
+const RaceCarScript := preload("res://scripts/player/race_car.gd")
+const QuestMgrScript := preload("res://scripts/autoload/quest_manager.gd")
+
+var _world: WorldBuilder
+var _player: PlayerController
+var _race_car
+var _quests
+var _menu: CanvasLayer
+var _minigame_host: MinigameHost
+
+var _hud_layer: CanvasLayer
+var _crosshair: ColorRect
+var _prompt_panel: PanelContainer
+var _prompt_lbl: Label
+var _status_lbl: Label
+var _quest_hud_panel: PanelContainer
+var _quest_hud_lbl: Label
+var _quest_journal_panel: PanelContainer
+var _quest_journal_lbl: Label
+var _race_hud_lbl: Label
+var _toast_panel: PanelContainer
+var _toast_lbl: Label
+var _toast_t: float = 0.0
+var _portal_overlay: ColorRect
+
+var _bino_layer: CanvasLayer
+var _bino_ctrl: Control
+var _bino_cam: Camera3D
+var _in_binoculars: bool = false
+var _bino_yaw: float = 1.25
+var _bino_pitch: float = -0.10
+var _bino_zoom: float = 4.0
+
+var _is_driving: bool = false
+var _transitioning: bool = false
+var _saved_cam_tf: Transform3D
+var _active_painting_id: String = ""
+
+
+func _ready() -> void:
+	_world = WorldBuilder.new()
+	_world.name = "WorldBuilder"
+	add_child(_world)
+
+	_player = PlayerController.new()
+	_player.name = "Player"
+	add_child(_player)
+
+	_world.build_world(_player)
+	_player.set_casino_room(_world.casino_room)
+	_player.reset_to_casino_spawn()
+	_player.set_controls_active(false)
+
+	_race_car = RaceCarScript.new()
+	_race_car.name = "PlayerRaceCar"
+	add_child(_race_car)
+	_race_car.setup(_world.race_track)
+	_race_car.exit_car_requested.connect(_exit_race)
+	_race_car.hud_updated.connect(func(txt: String): if _race_hud_lbl: _race_hud_lbl.text = txt)
+
+	_player.target_painting_changed.connect(_on_target_painting_changed)
+	_player.interact_painting_requested.connect(_on_interact_painting_requested)
+	_player.target_prop_changed.connect(_on_target_prop_changed)
+	_player.interact_prop_requested.connect(_on_interact_prop_requested)
+
+	_quests = QuestMgrScript.new()
+	_quests.state_changed.connect(_refresh_quest_ui)
+	_quests.quest_event.connect(func(msg: String, is_comp: bool):
+		_show_toast(msg)
+		if is_comp:
+			AudioSfx.play_fanfare()
+		else:
+			AudioSfx.play_powerup()
+	)
+
+	_build_hud()
+	_build_binoculars()
+	_refresh_quest_ui()
+
+	_minigame_host = MinigameHost.new()
+	_minigame_host.name = "MinigameHost"
+	add_child(_minigame_host)
+	_minigame_host.exit_requested.connect(_on_minigame_exit_requested)
+
+	var menu_script := load("res://scripts/ui/main_menu.gd") as GDScript
+	_menu = menu_script.new()
+	_menu.name = "MainMenu"
+	add_child(_menu)
+	_menu.new_game_requested.connect(_on_new_game_requested)
+	_menu.resume_requested.connect(_on_resume_requested)
+	_menu.weather_changed.connect(_on_weather_changed)
+
+	if _world.weather:
+		_world.weather.weather_state_changed.connect(_update_status_hud)
+	_update_status_hud("")
+
+
+func _build_hud() -> void:
+	_hud_layer = CanvasLayer.new()
+	_hud_layer.layer = 10
+	add_child(_hud_layer)
+
+	# Center subtle crosshair dot
+	_crosshair = ColorRect.new()
+	_crosshair.size = Vector2(6, 6)
+	_crosshair.color = Color(1.0, 0.96, 0.85, 0.82)
+	_crosshair.set_anchors_preset(Control.PRESET_CENTER)
+	_crosshair.position = Vector2(-3, -3)
+	_crosshair.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_crosshair.visible = false
+	_hud_layer.add_child(_crosshair)
+
+	# Painting interaction prompt
+	_prompt_panel = PanelContainer.new()
+	_prompt_panel.visible = false
+	_prompt_panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_prompt_panel.offset_left = -280
+	_prompt_panel.offset_right = 280
+	_prompt_panel.offset_top = -125
+	_prompt_panel.offset_bottom = -68
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.05, 0.08, 0.07, 0.88)
+	sb.border_color = Color(0.92, 0.76, 0.30, 0.95)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(10)
+	sb.content_margin_left = 18; sb.content_margin_right = 18
+	sb.content_margin_top = 10; sb.content_margin_bottom = 10
+	_prompt_panel.add_theme_stylebox_override("panel", sb)
+	_hud_layer.add_child(_prompt_panel)
+
+	_prompt_lbl = Label.new()
+	_prompt_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_prompt_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_prompt_lbl.add_theme_font_size_override("font_size", 19)
+	_prompt_lbl.add_theme_color_override("font_color", Color(1.0, 0.94, 0.76))
+	_prompt_panel.add_child(_prompt_lbl)
+
+	# Corner HUD status
+	_status_lbl = Label.new()
+	_status_lbl.position = Vector2(18, 14)
+	_status_lbl.add_theme_font_size_override("font_size", 14)
+	_status_lbl.add_theme_color_override("font_color", Color(0.95, 0.96, 0.92, 0.88))
+	_status_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.75))
+	_status_lbl.add_theme_constant_override("shadow_offset_x", 1)
+	_status_lbl.add_theme_constant_override("shadow_offset_y", 1)
+	_status_lbl.visible = false
+	_hud_layer.add_child(_status_lbl)
+
+	# Top-right compact Quest Tracker Pill
+	_quest_hud_panel = PanelContainer.new()
+	_quest_hud_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_quest_hud_panel.offset_left = -410
+	_quest_hud_panel.offset_right = -16
+	_quest_hud_panel.offset_top = 12
+	_quest_hud_panel.offset_bottom = 66
+	_quest_hud_panel.add_theme_stylebox_override("panel", sb)
+	_quest_hud_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_quest_hud_panel.visible = false
+	_hud_layer.add_child(_quest_hud_panel)
+	_quest_hud_lbl = Label.new()
+	_quest_hud_lbl.add_theme_font_size_override("font_size", 13)
+	_quest_hud_lbl.add_theme_color_override("font_color", Color(0.98, 0.94, 0.78))
+	_quest_hud_panel.add_child(_quest_hud_lbl)
+
+	# Toggleable [Q] Quest Journal Overlay
+	_quest_journal_panel = PanelContainer.new()
+	_quest_journal_panel.set_anchors_preset(Control.PRESET_CENTER)
+	_quest_journal_panel.offset_left = -300
+	_quest_journal_panel.offset_right = 300
+	_quest_journal_panel.offset_top = -225
+	_quest_journal_panel.offset_bottom = 225
+	var jsb := StyleBoxFlat.new()
+	jsb.bg_color = Color(0.05, 0.06, 0.08, 0.95)
+	jsb.border_color = Color(0.92, 0.76, 0.28)
+	jsb.set_border_width_all(3); jsb.set_corner_radius_all(12)
+	jsb.content_margin_left = 24; jsb.content_margin_right = 24
+	jsb.content_margin_top = 18; jsb.content_margin_bottom = 18
+	_quest_journal_panel.add_theme_stylebox_override("panel", jsb)
+	_quest_journal_panel.visible = false
+	_hud_layer.add_child(_quest_journal_panel)
+	var jv := VBoxContainer.new()
+	jv.add_theme_constant_override("separation", 10)
+	_quest_journal_panel.add_child(jv)
+	var jtitle := Label.new()
+	jtitle.text = "📜 ЖУРНАЛ КВЕСТІВ КАЗИНО"
+	jtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	jtitle.add_theme_font_size_override("font_size", 22)
+	jtitle.add_theme_color_override("font_color", Color(0.98, 0.84, 0.34))
+	jv.add_child(jtitle)
+	_quest_journal_lbl = Label.new()
+	_quest_journal_lbl.add_theme_font_size_override("font_size", 14)
+	_quest_journal_lbl.add_theme_color_override("font_color", Color(0.90, 0.92, 0.88))
+	_quest_journal_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_quest_journal_lbl.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	jv.add_child(_quest_journal_lbl)
+	var jhint := Label.new()
+	jhint.text = "Натисніть [Q] або [Esc], щоб закрити"
+	jhint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	jhint.add_theme_font_size_override("font_size", 13)
+	jhint.add_theme_color_override("font_color", Color(0.75, 0.82, 0.76))
+	jv.add_child(jhint)
+
+	# Bottom Racing HUD bar
+	_race_hud_lbl = Label.new()
+	_race_hud_lbl.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_race_hud_lbl.offset_left = -460
+	_race_hud_lbl.offset_right = 460
+	_race_hud_lbl.offset_top = -46
+	_race_hud_lbl.offset_bottom = -14
+	_race_hud_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_race_hud_lbl.add_theme_font_size_override("font_size", 16)
+	_race_hud_lbl.add_theme_color_override("font_color", Color(1.0, 0.94, 0.72))
+	_race_hud_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.85))
+	_race_hud_lbl.add_theme_constant_override("shadow_offset_x", 1)
+	_race_hud_lbl.add_theme_constant_override("shadow_offset_y", 1)
+	_race_hud_lbl.visible = false
+	_hud_layer.add_child(_race_hud_lbl)
+
+	# Top floating fun-gadget notification toast
+	_toast_panel = PanelContainer.new()
+	_toast_panel.visible = false
+	_toast_panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_toast_panel.offset_left = -280
+	_toast_panel.offset_right = 280
+	_toast_panel.offset_top = 48
+	_toast_panel.offset_bottom = 96
+	_toast_panel.add_theme_stylebox_override("panel", sb)
+	_hud_layer.add_child(_toast_panel)
+	_toast_lbl = Label.new()
+	_toast_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_toast_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_toast_lbl.add_theme_font_size_override("font_size", 18)
+	_toast_lbl.add_theme_color_override("font_color", Color(1.0, 0.96, 0.72))
+	_toast_panel.add_child(_toast_lbl)
+
+	# Portal dissolve overlay on higher CanvasLayer
+	var portal_layer := CanvasLayer.new()
+	portal_layer.layer = 45
+	add_child(portal_layer)
+	_portal_overlay = ColorRect.new()
+	_portal_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_portal_overlay.color = Color(0.06, 0.05, 0.04, 0.0)
+	_portal_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_portal_overlay.visible = false
+	portal_layer.add_child(_portal_overlay)
+
+
+func _build_binoculars() -> void:
+	_bino_cam = Camera3D.new()
+	_bino_cam.name = "BinocularsCamera"
+	_bino_cam.position = Vector3(-20.1, 15.3, 0.0) # Right at West parapet edge overlooking valley, lakes & race track
+	_bino_cam.far = 900.0
+	add_child(_bino_cam)
+
+	_bino_layer = CanvasLayer.new()
+	_bino_layer.layer = 16
+	_bino_layer.visible = false
+	add_child(_bino_layer)
+
+	_bino_ctrl = Control.new()
+	_bino_ctrl.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_bino_ctrl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_bino_ctrl.draw.connect(_draw_bino_overlay)
+	_bino_layer.add_child(_bino_ctrl)
+
+
+func _draw_bino_overlay() -> void:
+	if not is_instance_valid(_bino_ctrl):
+		return
+	var sz := _bino_ctrl.size
+	if sz.x < 10.0 or sz.y < 10.0:
+		return
+	var cy := sz.y * 0.5
+	var r := minf(sz.x * 0.255, sz.y * 0.42)
+	var lx := sz.x * 0.5 - r * 0.74
+	var rx := sz.x * 0.5 + r * 0.74
+	var mask_col := Color(0.01, 0.01, 0.02, 0.95)
+
+	# Smooth crisp twin-circle mask using exact vertical slices (ZERO polygon triangulation bugs!)
+	var min_x := int(maxf(floor(lx - r), 0.0))
+	var max_x := int(minf(ceil(rx + r), sz.x))
+	if min_x > 0:
+		_bino_ctrl.draw_rect(Rect2(0, 0, float(min_x), sz.y), mask_col)
+	if max_x < int(sz.x):
+		_bino_ctrl.draw_rect(Rect2(float(max_x), 0, sz.x - float(max_x), sz.y), mask_col)
+
+	var step_x := 2
+	var x := min_x
+	while x < max_x:
+		var xc := float(x) + 1.0
+		var h_l := sqrt(maxf(0.0, r * r - (xc - lx) * (xc - lx)))
+		var h_r := sqrt(maxf(0.0, r * r - (xc - rx) * (xc - rx)))
+		var h_open := maxf(h_l, h_r)
+		var y_top := maxf(0.0, cy - h_open)
+		var y_bot := minf(sz.y, cy + h_open)
+		if y_top > 0.0:
+			_bino_ctrl.draw_rect(Rect2(float(x), 0.0, float(step_x) + 0.5, y_top), mask_col)
+		if y_bot < sz.y:
+			_bino_ctrl.draw_rect(Rect2(float(x), y_bot, float(step_x) + 0.5, sz.y - y_bot), mask_col)
+		x += step_x
+
+	_bino_ctrl.draw_arc(Vector2(lx, cy), r, 0.0, TAU, 64, Color(0.18, 0.20, 0.22), 5.0)
+	_bino_ctrl.draw_arc(Vector2(rx, cy), r, 0.0, TAU, 64, Color(0.18, 0.20, 0.22), 5.0)
+
+	# Center optical rangefinder crosshairs
+	var mid := sz * 0.5
+	_bino_ctrl.draw_line(mid - Vector2(36, 0), mid - Vector2(10, 0), Color(0.32, 0.96, 0.68, 0.85), 1.5)
+	_bino_ctrl.draw_line(mid + Vector2(10, 0), mid + Vector2(36, 0), Color(0.32, 0.96, 0.68, 0.85), 1.5)
+	_bino_ctrl.draw_line(mid - Vector2(0, 36), mid - Vector2(0, 10), Color(0.32, 0.96, 0.68, 0.85), 1.5)
+	_bino_ctrl.draw_line(mid + Vector2(0, 10), mid + Vector2(0, 36), Color(0.32, 0.96, 0.68, 0.85), 1.5)
+
+	var f := ThemeDB.fallback_font
+	_bino_ctrl.draw_string(f, Vector2(24, sz.y - 26), "БІНОКЛЬ  |  Зум: %.1fx  |  Коліщатко миші / [+]/[-] — зум  |  Миша — огляд  |  [E] або [Esc] — вийти" % _bino_zoom, HORIZONTAL_ALIGNMENT_CENTER, sz.x - 48, 16, Color(0.95, 0.96, 0.82))
+
+
+func _refresh_quest_ui() -> void:
+	if _quests == null:
+		return
+	if _quest_hud_lbl:
+		_quest_hud_lbl.text = _quests.get_hud_summary()
+	if _quest_journal_lbl:
+		_quest_journal_lbl.text = _quests.format_journal_text()
+
+
+func _toggle_quest_journal() -> void:
+	if _quest_journal_panel == null:
+		return
+	_quest_journal_panel.visible = not _quest_journal_panel.visible
+	_refresh_quest_ui()
+	AudioSfx.play_switch()
+
+
+func _show_toast(msg: String) -> void:
+	if _toast_lbl and _toast_panel:
+		_toast_lbl.text = msg
+		_toast_panel.visible = true
+		_toast_t = 3.0
+
+
+func _update_status_hud(_unused: String) -> void:
+	if _status_lbl == null or _world == null or _world.weather == null:
+		return
+	_status_lbl.text = "Погода: %s  |  [Esc] Меню  |  [F] Ліхтар" % _world.weather.get_weather_label()
+
+
+func _process(delta: float) -> void:
+	if _toast_t > 0.0:
+		_toast_t -= delta
+		if _toast_t <= 0.0 and _toast_panel:
+			_toast_panel.visible = false
+
+	if _in_binoculars and _bino_cam:
+		var pan_spd := delta * (1.2 / maxf(_bino_zoom * 0.45, 1.0))
+		if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT): _bino_yaw += pan_spd
+		if Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT): _bino_yaw -= pan_spd
+		if Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP): _bino_pitch = clampf(_bino_pitch + pan_spd, -0.95, 0.65)
+		if Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN): _bino_pitch = clampf(_bino_pitch - pan_spd, -0.95, 0.65)
+		_bino_cam.rotation = Vector3(_bino_pitch, _bino_yaw, 0.0)
+		_bino_cam.fov = clampf(72.0 / _bino_zoom, 5.0, 38.0)
+
+	if _world and _world.weather and _player:
+		var p: Vector3 = _race_car.global_position if (_is_driving and _race_car) else _player.global_position
+		if _quests and _menu and not _menu.visible:
+			if not _is_driving and p.y < 4.5 and absf(p.x) < 20.0 and absf(p.z) < 9.0:
+				if p.x >= -6.8 and p.x < 5.2:
+					_quests.record_step("explorer_basement", "exhibition")
+				elif p.x < -6.8 and p.z < 0.0:
+					_quests.record_step("explorer_basement", "cellar")
+				elif p.x < -6.8 and p.z >= 0.0:
+					_quests.record_step("explorer_basement", "vault")
+			elif _is_driving and _race_car and _world.race_track:
+				if bool(_race_car._airborne):
+					_quests.record_step("stunt_driver", "jump")
+				var r_sp: Dictionary = _world.race_track.sample_at_s(_race_car._track_s)
+				if not r_sp.is_empty() and bool(r_sp.get("is_loop", false)):
+					_quests.record_step("stunt_driver", "loop")
+
+		var indoors := 1.0 if (absf(p.x) < 20.5 and absf(p.z) < 9.5 and p.y < 13.0) else 0.0
+		var d_w := Vector2(p.x + 68.0, p.z + 28.0).length() - 36.0
+		var d_e := Vector2(p.x - 72.0, p.z - 34.0).length() - 40.0
+		var d_s := Vector2(p.x - 18.0, p.z - 66.0).length() - 20.0
+		var lake_dist := minf(d_w, minf(d_e, d_s))
+		var water_prox := clampf(1.0 - maxf(lake_dist, 0.0) / 36.0, 0.0, 1.0)
+		var roulette_prox := clampf(1.0 - Vector2(p.x, p.z - 0.2).length() / 6.5, 0.0, 1.0) * indoors
+		AudioSfx.set_ambient_state(_world.weather.get_rain_amount(), _world.weather.get_wind_strength(), indoors, water_prox, roulette_prox)
+
+		if _minigame_host and _minigame_host.is_active():
+			AudioSfx.set_music_mode("minigame", _active_painting_id)
+		elif _menu and _menu.visible:
+			AudioSfx.set_music_mode("menu")
+		elif indoors > 0.5:
+			AudioSfx.set_music_mode("casino")
+		else:
+			AudioSfx.set_music_mode("forest")
+
+
+func _input(event: InputEvent) -> void:
+	if _is_driving:
+		return
+
+	if _in_binoculars:
+		if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+			var mm := event as InputEventMouseMotion
+			var sens := 0.0022 * (72.0 / maxf(_bino_zoom * 72.0 * 0.25, 14.0))
+			_bino_yaw -= mm.relative.x * sens
+			_bino_pitch = clampf(_bino_pitch - mm.relative.y * sens, -0.95, 0.65)
+		elif event is InputEventMouseButton:
+			var mb := event as InputEventMouseButton
+			if mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_UP:
+				_bino_zoom = clampf(_bino_zoom + 1.0, 2.0, 14.0)
+				_bino_ctrl.queue_redraw()
+			elif mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+				_bino_zoom = clampf(_bino_zoom - 1.0, 2.0, 14.0)
+				_bino_ctrl.queue_redraw()
+		elif event is InputEventKey:
+			var bk := event as InputEventKey
+			if bk.pressed and not bk.echo:
+				if bk.physical_keycode == KEY_ESCAPE or bk.physical_keycode == KEY_E:
+					get_viewport().set_input_as_handled()
+					_exit_binoculars()
+				elif bk.physical_keycode == KEY_EQUAL or bk.physical_keycode == KEY_KP_ADD:
+					_bino_zoom = clampf(_bino_zoom + 1.5, 2.0, 14.0); _bino_ctrl.queue_redraw()
+				elif bk.physical_keycode == KEY_MINUS or bk.physical_keycode == KEY_KP_SUBTRACT:
+					_bino_zoom = clampf(_bino_zoom - 1.5, 2.0, 14.0); _bino_ctrl.queue_redraw()
+		return
+
+	if event is InputEventKey:
+		var k := event as InputEventKey
+		if k.pressed and not k.echo and k.physical_keycode == KEY_Q:
+			if _minigame_host.is_active() or _transitioning or (_menu and _menu.visible):
+				return
+			get_viewport().set_input_as_handled()
+			_toggle_quest_journal()
+		elif k.pressed and not k.echo and k.physical_keycode == KEY_ESCAPE:
+			if _minigame_host.is_active() or _transitioning:
+				return
+			if _quest_journal_panel and _quest_journal_panel.visible:
+				get_viewport().set_input_as_handled()
+				_toggle_quest_journal()
+				return
+			if _menu.visible:
+				if _menu.is_game_started:
+					get_viewport().set_input_as_handled()
+					_menu.close_menu()
+					_on_resume_requested()
+			else:
+				get_viewport().set_input_as_handled()
+				_pause_to_menu()
+
+
+func _pause_to_menu() -> void:
+	_player.set_controls_active(false)
+	_crosshair.visible = false
+	_prompt_panel.visible = false
+	_status_lbl.visible = false
+	if _quest_hud_panel: _quest_hud_panel.visible = false
+	if _quest_journal_panel: _quest_journal_panel.visible = false
+	_menu.open_menu()
+
+
+func _on_new_game_requested() -> void:
+	_menu.close_menu()
+	_menu.set_game_started(true)
+	_player.reset_to_casino_spawn()
+	_player.set_controls_active(true)
+	_crosshair.visible = true
+	_status_lbl.visible = true
+	if _quest_hud_panel: _quest_hud_panel.visible = true
+
+
+func _on_resume_requested() -> void:
+	_player.set_controls_active(true)
+	_crosshair.visible = true
+	_status_lbl.visible = true
+	if _quest_hud_panel: _quest_hud_panel.visible = true
+
+
+func _on_weather_changed(mode: int) -> void:
+	if _world and _world.weather:
+		_world.weather.set_weather_mode(mode)
+		_update_status_hud("")
+
+
+func _on_target_painting_changed(painting_id: String, title: String) -> void:
+	if painting_id == "" or not _player.controls_enabled:
+		if _player._targeted_prop_id == "":
+			_prompt_panel.visible = false
+	else:
+		_prompt_lbl.text = "[E] або [ЛКМ] — Увійти в картину: «%s»" % title
+		_prompt_panel.visible = true
+
+
+func _on_target_prop_changed(prop_id: String, title: String) -> void:
+	if prop_id == "" or not _player.controls_enabled:
+		if _player._targeted_painting_id == "":
+			_prompt_panel.visible = false
+	else:
+		_prompt_lbl.text = "[E] або [ЛКМ] — %s" % title
+		_prompt_panel.visible = true
+
+
+func _enter_binoculars() -> void:
+	_in_binoculars = true
+	_bino_yaw = 1.25
+	_bino_pitch = -0.10
+	_bino_zoom = 4.0
+	_player.set_controls_active(false)
+	_crosshair.visible = false
+	_prompt_panel.visible = false
+	_status_lbl.visible = false
+	_bino_cam.current = true
+	_bino_layer.visible = true
+	_bino_ctrl.queue_redraw()
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	AudioSfx.play_switch()
+
+
+func _exit_binoculars() -> void:
+	_in_binoculars = false
+	_bino_layer.visible = false
+	_bino_cam.current = false
+	_player.get_camera().current = true
+	_player.set_controls_active(true)
+	_crosshair.visible = true
+	_status_lbl.visible = true
+	AudioSfx.play_switch()
+
+
+func _start_race() -> void:
+	if _is_driving or _race_car == null:
+		return
+	_is_driving = true
+	_player.set_controls_active(false)
+	_crosshair.visible = false
+	_prompt_panel.visible = false
+	_race_hud_lbl.visible = true
+	_race_car.start_race()
+	AudioSfx.play_race_lap()
+
+
+func _exit_race() -> void:
+	if not _is_driving:
+		return
+	_is_driving = false
+	_race_car.stop_race()
+	_race_hud_lbl.visible = false
+	_player.global_position = Vector3(-16.0, 6.45, 63.5)
+	_player.velocity = Vector3.ZERO
+	_player.get_camera().current = true
+	_player.set_controls_active(true)
+	_crosshair.visible = true
+	_show_toast("Ви припаркувались біля зупинки траси!")
+
+
+func _on_interact_prop_requested(prop_id: String) -> void:
+	if _transitioning or _minigame_host.is_active():
+		return
+	match prop_id:
+		"race_start":
+			_start_race()
+		"binoculars":
+			if _quests: _quests.record_any("binoculars")
+			_enter_binoculars()
+		"quest_board":
+			_toggle_quest_journal()
+		"vault_safe":
+			if _quests:
+				if _quests.record_step("vault_heist", "vault_safe"):
+					_quests.add_chips(80)
+					_show_toast("🔓 Сейф зламано! Знайдено +80 золотих фішок!")
+				else:
+					_show_toast("🔓 Сейф уже порожній — усе золото ваше!")
+			AudioSfx.play_coin()
+		"relic_cup":
+			if _quests: _quests.record_any("relic_cup")
+			_show_toast("🏆 Артефакт #1: Золотий Кубок Виставкового Залу!")
+			AudioSfx.play_coin()
+		"relic_amphora":
+			if _quests: _quests.record_any("relic_amphora")
+			_show_toast("🏺 Артефакт #2: Винна Амфора 1898 року!")
+			AudioSfx.play_coin()
+		"relic_sapphire":
+			if _quests: _quests.record_any("relic_sapphire")
+			_show_toast("💎 Артефакт #3: Безцінний Королівський Сапфір!")
+			AudioSfx.play_coin()
+		"slot_left":
+			if _world and _world.casino_room:
+				_show_toast(_world.casino_room.trigger_slot(0))
+		"slot_right":
+			if _world and _world.casino_room:
+				_show_toast(_world.casino_room.trigger_slot(1))
+		"roulette_spin":
+			if _world and _world.casino_room:
+				_show_toast(_world.casino_room.trigger_roulette())
+		"disco_button":
+			if _world and _world.casino_room:
+				var on := _world.casino_room.toggle_disco()
+				if _quests: _quests.record_any("disco_button")
+				_show_toast("🕺 ВІП-ДИСКО %s!" % ("АКТИВОВАНО" if on else "вимкнено"))
+		"duck_horn":
+			AudioSfx.play_duck_call(-0.5)
+			AudioSfx.play_duck_call(0.5)
+			_show_toast("🦆 Кря-кря! Качки на озері почули ваш сигнал!")
+		"bounce_shroom":
+			_player.velocity.y = 21.5
+			if _quests: _quests.record_any("bounce_shroom")
+			AudioSfx.play_boing_launch()
+			_show_toast("🍄 Стрибок над сосновою долиною!")
+		"weather_altar":
+			if _world and _world.weather:
+				var cur_mode := int(ConfigManager.graphics.get("weather_mode", 0))
+				var next_mode := (cur_mode + 1) % 6
+				if next_mode == 0:
+					next_mode = 1
+				ConfigManager.graphics["weather_mode"] = next_mode
+				_world.weather.set_weather_mode(next_mode)
+				_update_status_hud("")
+				if _quests: _quests.record_any("weather_altar")
+				AudioSfx.play_powerup()
+				_show_toast("⛅ Вівтар змінив погоду: %s" % _world.weather.get_weather_label())
+
+
+func _on_interact_painting_requested(painting_id: String) -> void:
+	if _transitioning or _minigame_host.is_active() or not _world or not _world.casino_room:
+		return
+	var info := _world.casino_room.get_painting_by_id(painting_id)
+	if info.is_empty():
+		return
+
+	if _quests:
+		_quests.record_any(painting_id.split("__")[0])
+
+	_transitioning = true
+	_active_painting_id = painting_id
+	_player.set_controls_active(false)
+	_crosshair.visible = false
+	_prompt_panel.visible = false
+	_status_lbl.visible = false
+
+	AudioSfx.play_portal_dive()
+
+	var cam := _player.get_camera()
+	_saved_cam_tf = cam.global_transform
+	var p_node: Node3D = info["node"]
+	var target_pos := p_node.to_global(Vector3(0.0, 0.0, 0.36))
+	var target_basis := p_node.global_transform.basis
+	var target_tf := Transform3D(target_basis, target_pos)
+
+	_portal_overlay.visible = true
+	_portal_overlay.color = Color(0.08, 0.06, 0.03, 0.0)
+
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.set_trans(Tween.TRANS_CUBIC)
+	tw.set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(cam, "global_transform", target_tf, 0.62)
+	tw.tween_property(cam, "fov", 38.0, 0.62)
+	tw.tween_method(func(v: float):
+		if _world and _world.casino_room:
+			_world.casino_room.set_painting_transition(painting_id, v, (1.0 - v) * 2.2)
+	, 0.0, 1.0, 0.45)
+	tw.tween_property(_portal_overlay, "color:a", 1.0, 0.26).set_delay(0.36)
+	await tw.finished
+
+	_minigame_host.open_game(painting_id)
+	var fade_out := create_tween()
+	fade_out.tween_property(_portal_overlay, "color:a", 0.0, 0.28)
+	await fade_out.finished
+	_portal_overlay.visible = false
+	_transitioning = false
+
+
+func _on_minigame_exit_requested() -> void:
+	if _transitioning or not _minigame_host.is_active():
+		return
+	_transitioning = true
+	AudioSfx.play_portal_exit()
+
+	_portal_overlay.visible = true
+	_portal_overlay.color = Color(0.08, 0.06, 0.03, 0.0)
+	var fade_in := create_tween()
+	fade_in.tween_property(_portal_overlay, "color:a", 1.0, 0.20)
+	await fade_in.finished
+
+	_minigame_host.close_game()
+	if _world and _world.casino_room and _active_painting_id != "":
+		_world.casino_room.set_painting_transition(_active_painting_id, 0.0, 2.2)
+
+	var cam := _player.get_camera()
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.set_trans(Tween.TRANS_CUBIC)
+	tw.set_ease(Tween.EASE_OUT)
+	tw.tween_property(cam, "global_transform", _saved_cam_tf, 0.45)
+	tw.tween_property(cam, "fov", 74.0, 0.45)
+	tw.tween_property(_portal_overlay, "color:a", 0.0, 0.42)
+	await tw.finished
+
+	_portal_overlay.visible = false
+	_transitioning = false
+	_player.set_controls_active(true)
+	_crosshair.visible = true
+	_status_lbl.visible = true
