@@ -1,9 +1,9 @@
 class_name CasinoRoom
 extends Node3D
 
-# 24 completely unique games across Casino & 4-Room Underground Complex:
+# 34 completely unique games across Casino, Underground Complex & Mansard Gallery:
 # Main Hall (7), West Strategy Lounge (5), East Arcade Landing (1),
-# Basement Card Club (3), Basement Exhibition Hall Tripods (6), Wine Cellar Tripod (1), Vault Tripod (1)
+# Basement Card Club (3), Basement Exhibition Hall Tripods (6), Wine Cellar & Vault Tripods (2), Mansard Gallery Tripods (10)
 const PAINTING_SPECS: Array[Dictionary] = [
 	{"id": "mario", "title": "Маріо", "pos": Vector3(-5.2, 2.75, -8.68), "yaw": 0.0},
 	{"id": "tetris", "title": "Тетріс", "pos": Vector3(0.0, 2.75, -8.68), "yaw": 0.0},
@@ -38,7 +38,19 @@ const PAINTING_SPECS: Array[Dictionary] = [
 
 	# Basement Room 3 (Wine Cellar Tripod) & Room 4 (Vault Tripod)
 	{"id": "flappy", "title": "Сокіл Долини", "pos": Vector3(-11.2, -2.28, -6.1), "yaw": -0.45, "easel": true},
-	{"id": "sudoku", "title": "Судоку", "pos": Vector3(-11.2, -2.28, 6.1), "yaw": PI + 0.45, "easel": true}
+	{"id": "sudoku", "title": "Судоку", "pos": Vector3(-11.2, -2.28, 6.1), "yaw": PI + 0.45, "easel": true},
+
+	# Mansard Arcade Gallery with 10 Exhibition Tripods (Floor Y=+6.80 -> Easel Y=+8.52)
+	{"id": "python3d", "title": "Пітон", "pos": Vector3(12.6, 8.52, -4.6), "yaw": -0.22, "easel": true},
+	{"id": "hexa", "title": "Гекса", "pos": Vector3(12.6, 8.52, 4.6), "yaw": PI + 0.22, "easel": true},
+	{"id": "sokoban", "title": "Сокобан", "pos": Vector3(6.8, 8.52, -4.6), "yaw": 0.0, "easel": true},
+	{"id": "fifteen", "title": "П'ятнашки", "pos": Vector3(6.8, 8.52, 4.6), "yaw": PI, "easel": true},
+	{"id": "tictactoe", "title": "Хрестики-Нулики", "pos": Vector3(1.6, 8.52, -4.6), "yaw": 0.0, "easel": true},
+	{"id": "pong", "title": "Теніс (Pong)", "pos": Vector3(1.6, 8.52, 4.6), "yaw": PI, "easel": true},
+	{"id": "memory", "title": "Меморі", "pos": Vector3(-3.6, 8.52, -4.6), "yaw": 0.0, "easel": true},
+	{"id": "codelock", "title": "Кодовий замок", "pos": Vector3(-3.6, 8.52, 4.6), "yaw": PI, "easel": true},
+	{"id": "bullscows", "title": "Бики та Корови", "pos": Vector3(-8.6, 8.52, -4.6), "yaw": 0.28, "easel": true},
+	{"id": "balda", "title": "Балда", "pos": Vector3(-8.6, 8.52, 4.6), "yaw": PI - 0.28, "easel": true}
 ]
 
 var paintings: Array[Dictionary] = []
@@ -369,9 +381,9 @@ func _build_west_wing() -> void:
 	var l_west := OmniLight3D.new()
 	l_west.position = Vector3(-14.5, 4.8, 0.0)
 	l_west.light_color = Color(1.0, 0.90, 0.72)
-	l_west.light_energy = 3.2
-	l_west.omni_range = 19.0
-	l_west.omni_attenuation = 1.35
+	l_west.light_energy = 4.2
+	l_west.omni_range = 21.0
+	l_west.omni_attenuation = 1.15
 	l_west.shadow_bias = 0.045
 	l_west.shadow_blur = 1.5
 	add_child(l_west)
@@ -435,9 +447,9 @@ func _build_east_wing_and_stairs() -> void:
 	var l_east := OmniLight3D.new()
 	l_east.position = Vector3(14.5, 4.8, -3.5)
 	l_east.light_color = Color(1.0, 0.90, 0.72)
-	l_east.light_energy = 2.8
-	l_east.omni_range = 17.5
-	l_east.omni_attenuation = 1.35
+	l_east.light_energy = 3.85
+	l_east.omni_range = 20.0
+	l_east.omni_attenuation = 1.15
 	l_east.shadow_bias = 0.045
 	l_east.shadow_blur = 1.5
 	add_child(l_east)
@@ -719,9 +731,9 @@ func _build_basement_vault() -> void:
 		var bl := OmniLight3D.new()
 		bl.position = lp + Vector3(0, -0.42, 0)
 		bl.light_color = ls[1]
-		bl.light_energy = float(ls[2])
-		bl.omni_range = 13.5
-		bl.omni_attenuation = 1.35
+		bl.light_energy = float(ls[2]) * 1.40
+		bl.omni_range = 16.0
+		bl.omni_attenuation = 1.12
 		bl.shadow_bias = 0.045
 		bl.shadow_blur = 1.5
 		bl.shadow_enabled = false
@@ -735,8 +747,8 @@ func _build_basement_vault() -> void:
 	var stair_l := OmniLight3D.new()
 	stair_l.position = Vector3(17.9, -1.55, 1.8)
 	stair_l.light_color = Color(1.0, 0.86, 0.64)
-	stair_l.light_energy = 1.6
-	stair_l.omni_range = 10.5
+	stair_l.light_energy = 2.4
+	stair_l.omni_range = 13.0
 	stair_l.shadow_enabled = false
 	add_child(stair_l)
 
@@ -855,7 +867,7 @@ func _build_mansard() -> void:
 	_add_box_body(self, Vector3(0.25, 0.55, 3.2), Vector3(4.92, 7.50, 0.0), leather_mat, true)
 	_add_box_body(self, Vector3(1.2, 0.48, 2.0), Vector3(1.8, 7.06, 0.0), walnut_mat, true)
 	var lbl_mansard := Label3D.new()
-	lbl_mansard.text = "★ МАНСАРДА ТА ОГЛЯДОВА ТЕРАСА ★"
+	lbl_mansard.text = "★ МАНСАРДА: ГАЛЕРЕЯ ІГОР ТА ПІТОН 3D ★"
 	lbl_mansard.position = Vector3(-11.2, 8.88, 0.0)
 	lbl_mansard.rotation.y = PI * 0.5
 	lbl_mansard.pixel_size = 0.0052
@@ -885,9 +897,9 @@ func _build_mansard() -> void:
 		var ml := OmniLight3D.new()
 		ml.position = Vector3(mx, 9.50, 0.0)
 		ml.light_color = Color(1.0, 0.88, 0.68)
-		ml.light_energy = 2.4
-		ml.omni_range = 15.0
-		ml.omni_attenuation = 1.35
+		ml.light_energy = 3.45
+		ml.omni_range = 18.0
+		ml.omni_attenuation = 1.12
 		ml.shadow_bias = 0.045
 		ml.shadow_blur = 1.5
 		add_child(ml)
@@ -1090,9 +1102,9 @@ func _build_chandeliers() -> void:
 		var light := OmniLight3D.new()
 		light.position = Vector3(0, -1.25, 0)
 		light.light_color = Color(1.0, 0.88, 0.70)
-		light.light_energy = 2.65
-		light.omni_range = 17.5
-		light.omni_attenuation = 1.35
+		light.light_energy = 3.65
+		light.omni_range = 20.0
+		light.omni_attenuation = 1.15
 		light.shadow_bias = 0.045
 		light.shadow_blur = 1.5
 		ch.add_child(light)
@@ -1167,8 +1179,8 @@ func _build_all_paintings() -> void:
 		var lamp := OmniLight3D.new()
 		lamp.position = Vector3(0, 1.08, 0.42)
 		lamp.light_color = Color(1.0, 0.88, 0.70)
-		lamp.light_energy = 0.38
-		lamp.omni_range = 3.2
+		lamp.light_energy = 0.52
+		lamp.omni_range = 3.8
 		lamp.shadow_enabled = false
 		p_node.add_child(lamp)
 
@@ -1290,15 +1302,15 @@ func _build_roof_searchlights() -> void:
 func _build_interior_reflection_probe() -> void:
 	_casino_probe = ReflectionProbe.new()
 	_casino_probe.name = "CasinoReflectionProbe"
-	_casino_probe.size = Vector3(44.0, 18.0, 22.0)
-	_casino_probe.position = Vector3(0.0, 4.5, 0.0)
+	_casino_probe.size = Vector3(44.0, 22.0, 22.0)
+	_casino_probe.position = Vector3(0.0, 4.2, 0.0)
 	_casino_probe.update_mode = ReflectionProbe.UPDATE_ONCE
 	_casino_probe.box_projection = true
 	_casino_probe.interior = true
 	_casino_probe.ambient_mode = ReflectionProbe.AMBIENT_COLOR
-	_casino_probe.ambient_color = Color(0.14, 0.12, 0.09)
-	_casino_probe.ambient_color_energy = 0.55
-	_casino_probe.intensity = 1.05
+	_casino_probe.ambient_color = Color(0.32, 0.28, 0.22)
+	_casino_probe.ambient_color_energy = 0.92
+	_casino_probe.intensity = 1.25
 	_casino_probe.enable_shadows = int(ConfigManager.graphics.get("shadows", 3)) >= 2
 	add_child(_casino_probe)
 
@@ -1419,6 +1431,69 @@ class PaintingCanvasDrawer extends Control:
 		var r := Rect2(Vector2.ZERO, size)
 		var f := ThemeDB.fallback_font
 		match game_id:
+			"python3d":
+				draw_rect(r, Color(0.05, 0.12, 0.07))
+				for seg in range(9):
+					var ang := anim_t * 2.4 - float(seg) * 0.28
+					var col := Color(0.22, 0.94, 0.44) if seg < 5 else Color(0.95, 0.24, 0.20)
+					draw_circle(Vector2(128.0 + cos(ang) * 52.0, 80.0 + sin(ang * 1.4) * 34.0), 8.5 - seg * 0.4, col)
+				draw_circle(Vector2(62, 48), 6.0, Color(0.98, 0.80, 0.16))
+				draw_circle(Vector2(198, 114), 6.5, Color(0.24, 0.86, 1.0))
+			"hexa":
+				draw_rect(r, Color(0.08, 0.09, 0.13))
+				var hc := [Color(0.98, 0.56, 0.18), Color(0.26, 0.82, 0.96), Color(0.14, 0.84, 0.58), Color(0.92, 0.24, 0.36), Color(0.66, 0.38, 0.92)]
+				for k in range(7):
+					var a := float(k) * TAU / 6.0
+					var p := Vector2(128, 80) + (Vector2(cos(a), sin(a)) * 36.0 if k < 6 else Vector2.ZERO)
+					draw_circle(p, 15.0, hc[k % hc.size()])
+			"sokoban":
+				draw_rect(r, Color(0.09, 0.11, 0.15))
+				draw_rect(Rect2(58, 28, 140, 104), Color(0.28, 0.32, 0.40), false, 4.0)
+				draw_circle(Vector2(166, 80), 9.0, Color(0.22, 0.88, 0.48))
+				draw_rect(Rect2(108 + sin(anim_t * 2.0) * 14.0, 62, 32, 32), Color(0.76, 0.48, 0.18))
+				draw_circle(Vector2(82, 78), 11.0, Color(0.22, 0.72, 0.98))
+			"fifteen":
+				draw_rect(r, Color(0.07, 0.10, 0.14))
+				for idx in range(8):
+					var tx := 74.0 + float(idx % 3) * 36.0
+					var ty := 24.0 + float(idx / 3) * 36.0
+					draw_rect(Rect2(tx, ty, 32, 32), Color(0.20, 0.42, 0.64) if idx != 4 else Color(0.16, 0.60, 0.38))
+					draw_string(f, Vector2(tx, ty + 22), str(idx + 1), HORIZONTAL_ALIGNMENT_CENTER, 32, 14, Color.WHITE)
+			"pong":
+				draw_rect(r, Color(0.04, 0.08, 0.06))
+				draw_rect(Rect2(26, 46 + sin(anim_t * 2.5) * 26.0, 10, 44), Color(0.22, 0.78, 0.98))
+				draw_rect(Rect2(220, 46 - sin(anim_t * 2.2) * 24.0, 10, 44), Color(0.96, 0.32, 0.28))
+				draw_circle(Vector2(128 + cos(anim_t * 3.8) * 70.0, 80 + sin(anim_t * 4.2) * 40.0), 6.0, Color.WHITE)
+			"memory":
+				draw_rect(r, Color(0.06, 0.12, 0.09))
+				var mc := [Color(0.95, 0.26, 0.30), Color(0.24, 0.74, 0.98), Color(0.96, 0.80, 0.18), Color(0.24, 0.88, 0.44)]
+				for ci in range(4):
+					draw_rect(Rect2(44 + ci * 44, 48, 36, 56), mc[ci])
+			"codelock":
+				draw_rect(r, Color(0.08, 0.09, 0.13))
+				var cc := [Color(0.92, 0.22, 0.22), Color(0.22, 0.56, 0.96), Color(0.22, 0.86, 0.42), Color(0.96, 0.82, 0.16)]
+				for ci in range(4):
+					draw_circle(Vector2(70 + ci * 38, 80), 13.0, cc[ci])
+			"bullscows":
+				draw_rect(r, Color(0.07, 0.09, 0.13))
+				draw_string(f, Vector2(36, 68), "4 8 1 7", HORIZONTAL_ALIGNMENT_CENTER, 184, 24, Color.WHITE)
+				draw_rect(Rect2(56, 88, 66, 24), Color(0.14, 0.58, 0.28))
+				draw_rect(Rect2(134, 88, 66, 24), Color(0.76, 0.56, 0.12))
+			"tictactoe":
+				draw_rect(r, Color(0.06, 0.08, 0.12))
+				draw_line(Vector2(106, 26), Vector2(106, 134), Color(0.36, 0.48, 0.62), 3.0)
+				draw_line(Vector2(150, 26), Vector2(150, 134), Color(0.36, 0.48, 0.62), 3.0)
+				draw_line(Vector2(66, 62), Vector2(190, 62), Color(0.36, 0.48, 0.62), 3.0)
+				draw_line(Vector2(66, 98), Vector2(190, 98), Color(0.36, 0.48, 0.62), 3.0)
+				draw_circle(Vector2(128, 80), 12.0, Color(0.96, 0.36, 0.34), false, 3.0)
+				draw_line(Vector2(74, 34), Vector2(96, 54), Color(0.24, 0.78, 0.98), 3.0)
+				draw_line(Vector2(96, 34), Vector2(74, 54), Color(0.24, 0.78, 0.98), 3.0)
+			"balda":
+				draw_rect(r, Color(0.08, 0.10, 0.14))
+				var w := "КАЗКА"
+				for ci in range(5):
+					draw_rect(Rect2(44 + ci * 34, 62, 30, 34), Color(0.18, 0.34, 0.54))
+					draw_string(f, Vector2(44 + ci * 34, 86), w[ci], HORIZONTAL_ALIGNMENT_CENTER, 30, 18, Color.WHITE)
 			"match3":
 				draw_rect(r, Color(0.06, 0.08, 0.14))
 				var gc := [Color(0.95, 0.22, 0.26), Color(0.22, 0.56, 0.98), Color(0.22, 0.86, 0.42), Color(0.98, 0.80, 0.16)]

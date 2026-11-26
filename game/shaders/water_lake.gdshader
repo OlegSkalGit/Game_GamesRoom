@@ -1,8 +1,8 @@
 shader_type spatial;
 render_mode blend_mix, depth_draw_opaque, cull_back, specular_schlick_ggx;
 
-uniform vec4 shallow_color : source_color = vec4(0.11, 0.36, 0.35, 0.78);
-uniform vec4 deep_color : source_color = vec4(0.03, 0.12, 0.18, 0.96);
+uniform vec4 shallow_color : source_color = vec4(0.15, 0.56, 0.54, 0.16);
+uniform vec4 deep_color : source_color = vec4(0.05, 0.28, 0.36, 0.46);
 uniform vec4 sky_tint : source_color = vec4(0.55, 0.74, 0.92, 1.0);
 uniform float wave_speed = 0.42;
 uniform float wave_scale = 0.22;
@@ -72,10 +72,11 @@ void fragment() {
 	view_p.xyz /= max(view_p.w, 0.0001);
 	float water_depth = max(-view_p.z + VERTEX.z, 0.0);
 
-	float depth_factor = clamp(1.0 - exp(-water_depth * 0.55), 0.0, 1.0);
+	float depth_factor = clamp(1.0 - exp(-water_depth * 0.28), 0.0, 1.0);
 	float fresnel = pow(1.0 - clamp(dot(normalize(VIEW), NORMAL), 0.0, 1.0), 4.0);
+	float caustic = pow(max(0.0, sin(p.x * 2.1 + t) * cos(p.y * 1.9 - t * 0.85)), 2.0) * smoothstep(3.8, 0.25, water_depth) * 0.16;
 	vec3 base = mix(shallow_color.rgb, deep_color.rgb, depth_factor);
-	base = mix(base, sky_tint.rgb, fresnel * 0.65);
+	base = mix(base, sky_tint.rgb, fresnel * 0.48) + vec3(0.24, 0.44, 0.40) * caustic;
 
 	// Smooth rolling shoreline foam (no noise grid seams!)
 	float ripple_phase = sin(p.x * 1.4 - p.y * 1.2 + t_frag * 1.8) * 0.5 + 0.5;
@@ -85,8 +86,8 @@ void fragment() {
 	base = mix(base, vec3(0.88, 0.93, 0.96), total_foam);
 
 	ALBEDO = base;
-	METALLIC = 0.12;
+	METALLIC = 0.10;
 	ROUGHNESS = roughness_val + total_foam * 0.25;
-	SPECULAR = 0.88;
-	ALPHA = clamp(mix(shallow_color.a, deep_color.a, depth_factor) + fresnel * 0.15, 0.68, 0.98);
+	SPECULAR = 0.85;
+	ALPHA = clamp(mix(shallow_color.a, deep_color.a, depth_factor) + fresnel * 0.22 + total_foam * 0.45, 0.14, 0.72);
 }

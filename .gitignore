@@ -3,7 +3,10 @@ _setup_tmp/
 .agents/
 game/.godot/
 game/addons/
-game/assets/
+game/assets/*
+!game/assets/textures/
+game/assets/textures/*
+!game/assets/textures/python3d/
 game/config.cfg
 *.tmp
 *.log

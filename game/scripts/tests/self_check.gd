@@ -82,6 +82,10 @@ func _run_checks() -> void:
 	if not _check(lake2_h < WorldBuilder.WATER_LEVEL - 0.5, "Lake 2 must dip below water level"): return
 	var t3d_h := world.terrain.data.get_height(Vector3(0.0, 0.0, 11.5))
 	if not _check(absf(t3d_h - 6.0) < 0.35, "Terrain3D imported height mismatch: %s" % t3d_h): return
+	if not _check(world.wildlife._fish.size() >= 18, "Lake fish missing: %d" % world.wildlife._fish.size()): return
+	for f_item in world.wildlife._fish:
+		var fn: Node3D = f_item["node"]
+		if not _check(fn.position.y < WorldBuilder.WATER_LEVEL - 0.1, "Fish poked above water at y=%.2f" % fn.position.y): return
 	print("[PASS] WorldBuilder (Sky3D, Terrain3D, Lakes, Weather, Wildlife)")
 
 	# 3. Verify all 24 games & paintings/tripods are strictly unique (zero duplicates!)
@@ -177,6 +181,51 @@ func _run_checks() -> void:
 		await get_tree().physics_frame
 	Input.parse_input_event(func_make_key(KEY_W, false))
 	if not _check(player.global_position.z < -6.0 and player.global_position.y >= 12.80, "Player got stuck climbing Mansard stairs at z=%.2f y=%.2f" % [player.global_position.z, player.global_position.y]): return
+
+	# Python 3D (18 original worlds/textures, smooth right steering, arc-length spacing, camera modes & AI)
+	if not _check(host.open_game("python3d"), "Failed to open python3d"): return
+	var py_g = host.get_active_game()
+	if not _check(py_g != null and py_g._enemies.size() >= 2, "Python 3D AI enemies missing"): return
+	if not _check(ResourceLoader.exists("res://assets/textures/python3d/snake_scales.png"), "Python 3D texture snake_scales.png missing"): return
+	py_g._t_immune = 0.0
+	py_g.handle_input_event(func_make_key(KEY_D, true))
+	for _ps in range(15):
+		py_g.step_game(0.03)
+	py_g.handle_input_event(func_make_key(KEY_D, false))
+	if not _check(py_g._p_angle > 0.2 and py_g._p_pos.x > 0.2, "Python 3D right steering failed: angle=%.2f x=%.2f" % [py_g._p_angle, py_g._p_pos.x]): return
+	py_g._load_world(17) # Test Final Boss World 18 Quantum Citadel builds cleanly
+	py_g.step_game(0.05)
+	if not _check(py_g._world_idx == 17 and py_g._enemies.size() == 5, "Python 3D World 18 failed to load"): return
+	host.close_game()
+
+	# Deterministic edge-merge checks on Hexa (pair default + triple mode along outer edge)
+	if not _check(host.open_game("hexa"), "Failed to open hexa"): return
+	var hx_g = host.get_active_game()
+	for hk: Vector2i in hx_g._cells:
+		hx_g._board[hk] = 0
+	hx_g._board[Vector2i(3, 0)] = 1
+	hx_g._board[Vector2i(4, 0)] = 1
+	hx_g._try_slide(1) # Two identical tiles already at right edge must merge in default x2 mode
+	if not _check(int(hx_g._board[Vector2i(4, 0)]) == 2, "Hexa edge pair merge failed"): return
+	hx_g._merge_req = 3
+	for hk: Vector2i in hx_g._cells:
+		hx_g._board[hk] = 0
+	hx_g._board[Vector2i(2, 0)] = 1
+	hx_g._board[Vector2i(3, 0)] = 1
+	hx_g._board[Vector2i(4, 0)] = 1
+	hx_g._try_slide(1) # Three identical tiles already at right edge must merge in x3 mode
+	if not _check(int(hx_g._board[Vector2i(4, 0)]) == 2, "Hexa triple edge merge failed along +q axis"): return
+	host.close_game()
+
+	# Verify all Sokoban levels have matching crate & target counts and valid player spawn
+	if not _check(host.open_game("sokoban"), "Failed to open sokoban"): return
+	var sk_g = host.get_active_game()
+	if not _check(sk_g.LEVELS.size() >= 16, "Sokoban expected >= 16 levels"): return
+	for si: int in range(sk_g.LEVELS.size()):
+		sk_g._load_level(si)
+		if not _check(sk_g._crates.size() >= 1 and sk_g._crates.size() == sk_g._targets.size(), "Sokoban level %d mismatch crates=%d targets=%d" % [si + 1, sk_g._crates.size(), sk_g._targets.size()]): return
+		if not _check(not sk_g._is_wall(sk_g._player), "Sokoban level %d invalid player position" % [si + 1]): return
+	host.close_game()
 	print("[PASS] Player Casino spawn, painting targeting, physical KEY_E+Shift dive & smooth stair climb")
 
 	# 5. Lighting, Shadows, PBR Materials & Multi-Coil Spiral Perimeter Race Verification

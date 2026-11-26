@@ -27,7 +27,17 @@ const GAME_SCRIPTS: Dictionary = {
 	"minesweeper": "res://scripts/minigames/games/game_minesweeper.gd",
 	"solitaire": "res://scripts/minigames/games/game_solitaire.gd",
 	"flappy": "res://scripts/minigames/games/game_flappy.gd",
-	"sudoku": "res://scripts/minigames/games/game_sudoku.gd"
+	"sudoku": "res://scripts/minigames/games/game_sudoku.gd",
+	"python3d": "res://scripts/minigames/games/game_python3d.gd",
+	"hexa": "res://scripts/minigames/games/game_hexa.gd",
+	"sokoban": "res://scripts/minigames/games/game_sokoban.gd",
+	"fifteen": "res://scripts/minigames/games/game_fifteen.gd",
+	"pong": "res://scripts/minigames/games/game_pong.gd",
+	"memory": "res://scripts/minigames/games/game_memory.gd",
+	"codelock": "res://scripts/minigames/games/game_codelock.gd",
+	"bullscows": "res://scripts/minigames/games/game_bullscows.gd",
+	"tictactoe": "res://scripts/minigames/games/game_tictactoe.gd",
+	"balda": "res://scripts/minigames/games/game_balda.gd"
 }
 
 var _root_panel: ColorRect

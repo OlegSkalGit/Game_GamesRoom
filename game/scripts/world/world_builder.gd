@@ -726,13 +726,13 @@ func _build_lakes_and_rocks() -> void:
 	var ra_tfs: Array[Transform3D] = []
 	var rb_tfs: Array[Transform3D] = []
 
-	for i in range(260):
+	for i in range(340):
 		var wx := rng.randf_range(-145.0, 145.0)
 		var wz := rng.randf_range(-145.0, 145.0)
-		if _is_near_road_or_track(wx, wz, 5.0):
+		if (absf(wx) < 25.0 and absf(wz) < 15.0) or _is_near_road_or_track(wx, wz, 5.0):
 			continue
 		var h := sample_height(wx, wz)
-		if h > WATER_LEVEL - 0.3 and h < WATER_LEVEL + 1.4:
+		if h > WATER_LEVEL - 2.6 and h < WATER_LEVEL + 1.4:
 			var r_pick := i % 4
 			if r_pick == 0 and rock_a_mesh:
 				var sc := rng.randf_range(0.18, 0.44)
@@ -1196,6 +1196,47 @@ func _build_simple_grass_and_plants(player: Node3D) -> void:
 				lily_tfs.append(Transform3D(Basis.from_euler(Vector3(0, rng.randf() * TAU, 0)).scaled(Vector3(sc, 1.0, sc)), Vector3(lx, WATER_LEVEL + 0.03, lz)))
 	if lily_tfs.size() > 0:
 		_flower_mms.append_array(_populate_chunked_mm("WaterLily", lily_pad, lily_mat, lily_tfs, false, 65.0, 120.0, 3))
+
+	# 5b. Swaying Underwater Lake Algae / Kelp Tufts ("водорослі") on Lake Beds
+	var algae_blade := CylinderMesh.new()
+	algae_blade.top_radius = 0.010; algae_blade.bottom_radius = 0.055; algae_blade.height = 1.0; algae_blade.radial_segments = 4
+	var algae_mat := ShaderMaterial.new()
+	algae_mat.shader = load("res://shaders/foliage_wind.gdshader")
+	algae_mat.set_shader_parameter("color_base", Color(0.06, 0.26, 0.12))
+	algae_mat.set_shader_parameter("color_tip", Color(0.24, 0.66, 0.30))
+	algae_mat.set_shader_parameter("wind_speed", 1.25)
+	algae_mat.set_shader_parameter("wind_strength", 0.15)
+	algae_mat.set_shader_parameter("is_grass_blade", true)
+	_foliage_mats.append(algae_mat)
+
+	var algae_tfs: Array[Transform3D] = []
+	var algae_zones := [
+		[Vector2(-49.0, -21.0), 36, 2.0, 11.0], # Near Mirror Lake Pier in clear shallow view
+		[Vector2(-68.0, -28.0), 85, 4.0, 28.0],
+		[Vector2(72.0, 34.0), 90, 5.0, 32.0],
+		[Vector2(18.0, 66.0), 45, 3.0, 17.0]
+	]
+	for az in algae_zones:
+		var center: Vector2 = az[0]
+		for _a in range(int(az[1])):
+			var ang := rng.randf() * TAU
+			var rad := rng.randf_range(float(az[2]), float(az[3]))
+			var cx := center.x + cos(ang) * rad
+			var cz := center.y + sin(ang) * rad
+			if absf(cx) < 25.0 and absf(cz) < 15.0: continue
+			var h := sample_height(cx, cz)
+			if h < WATER_LEVEL - 0.35:
+				var max_h := maxf(0.28, WATER_LEVEL - h - 0.18)
+				for _b in range(rng.randi_range(4, 7)):
+					var bx := cx + rng.randf_range(-0.45, 0.45)
+					var bz := cz + rng.randf_range(-0.45, 0.45)
+					var bh := sample_height(bx, bz)
+					if bh < WATER_LEVEL - 0.30:
+						var sy := minf(rng.randf_range(0.45, 1.35), max_h)
+						var sx := rng.randf_range(0.8, 1.4)
+						algae_tfs.append(Transform3D(Basis.from_euler(Vector3(rng.randf_range(-0.18, 0.18), rng.randf() * TAU, rng.randf_range(-0.18, 0.18))).scaled(Vector3(sx, sy, sx)), Vector3(bx, bh + sy * 0.45, bz)))
+	if algae_tfs.size() > 0:
+		_flower_mms.append_array(_populate_chunked_mm("UnderwaterAlgae", algae_blade, algae_mat, algae_tfs, false, 70.0, 120.0, 3))
 
 	# Forest Red-Cap Mushrooms scattered randomly on forest floor
 	var sh_cap := SphereMesh.new(); sh_cap.radius = 0.18; sh_cap.height = 0.16; sh_cap.radial_segments = 8

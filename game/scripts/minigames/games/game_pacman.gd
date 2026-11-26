@@ -35,7 +35,11 @@ const MAPS := [
 const CELL := 28.0
 const OX := 26.0
 const OY := 18.0
-const STEP_INTERVAL := 0.155
+const BASE_STEP_INTERVAL := 0.310 # 2x slower initial pace than 0.155s; gently speeds up per maze
+
+
+func _get_step_interval() -> float:
+	return maxf(0.155, BASE_STEP_INTERVAL - float(_level - 1) * 0.025)
 
 var _level: int = 1
 var _map_cur: Array = MAPS[0]
@@ -121,9 +125,10 @@ func step_game(delta: float) -> void:
 	if _fright_t > 0.0:
 		_fright_t = maxf(0.0, _fright_t - delta)
 
+	var step_iv := _get_step_interval()
 	_step_t += delta
-	if _step_t >= STEP_INTERVAL:
-		_step_t -= STEP_INTERVAL
+	if _step_t >= step_iv:
+		_step_t -= step_iv
 		_p_prev = _p_pos
 		if not _is_wall(_p_pos + _next_dir):
 			_p_dir = _next_dir
@@ -233,7 +238,7 @@ func _draw() -> void:
 		draw_line(fp + Vector2(-3, -2), fp + Vector2(1, -8), Color(0.25, 0.80, 0.24), 1.8)
 		draw_line(fp + Vector2(3, -1), fp + Vector2(1, -8), Color(0.25, 0.80, 0.24), 1.8)
 
-	var frac := clampf(_step_t / STEP_INTERVAL, 0.0, 1.0)
+	var frac := clampf(_step_t / _get_step_interval(), 0.0, 1.0)
 	var p_smooth := Vector2(_p_prev).lerp(Vector2(_p_pos), frac)
 	var pc := _cell_center(p_smooth)
 	draw_circle(pc, 10.5, Color(1.0, 0.88, 0.14))

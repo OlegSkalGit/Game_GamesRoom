@@ -550,5 +550,59 @@ func _get_minigame_melody(gid: String) -> Array[float]:
 			return [330.0, 392.0, 523.0, 440.0, 392.0, 523.0, 659.0, 523.0]
 		"sudoku":
 			return [247.0, 294.0, 370.0, 440.0, 370.0, 294.0, 247.0, 220.0]
+		"python3d", "python3d_0": # World 1 Forest Celtic Folk
+			return [220.0, 262.0, 294.0, 330.0, 392.0, 330.0, 294.0, 262.0]
+		"python3d_1": # World 2 Desert Phrygian
+			return [220.0, 233.1, 277.2, 294.0, 277.2, 233.1, 220.0, 330.0]
+		"python3d_2": # World 3 Ocean Dreamscape
+			return [294.0, 330.0, 440.0, 494.0, 440.0, 392.0, 330.0, 262.0]
+		"python3d_3": # World 4 Deep Space Ambient
+			return [196.0, 294.0, 392.0, 494.0, 392.0, 294.0, 247.0, 196.0]
+		"python3d_4": # World 5 Cyber Factory Industrial
+			return [165.0, 196.0, 220.0, 247.0, 220.0, 196.0, 185.0, 165.0]
+		"python3d_5": # World 6 Neon Metropolis Synthwave
+			return [220.0, 262.0, 330.0, 440.0, 523.0, 440.0, 330.0, 262.0]
+		"python3d_6": # World 7 Frozen Arctic Bell
+			return [330.0, 392.0, 494.0, 659.0, 587.0, 494.0, 392.0, 330.0]
+		"python3d_7": # World 8 Lava Inferno Darksynth
+			return [196.0, 207.7, 294.0, 311.1, 294.0, 233.1, 207.7, 196.0]
+		"python3d_8": # World 9 Crystal Caverns Chimes
+			return [392.0, 494.0, 587.0, 740.0, 587.0, 494.0, 440.0, 392.0]
+		"python3d_9": # World 10 Lost Jungle Tribal
+			return [220.0, 262.0, 294.0, 349.0, 294.0, 262.0, 220.0, 196.0]
+		"python3d_10": # World 11 Sky Sanctuary Brass
+			return [262.0, 330.0, 392.0, 523.0, 659.0, 523.0, 392.0, 330.0]
+		"python3d_11": # World 12 Toxic Wasteland Acid
+			return [185.0, 220.0, 247.0, 294.0, 247.0, 220.0, 207.7, 185.0]
+		"python3d_12": # World 13 Mystic Swamp Myst
+			return [247.0, 294.0, 330.0, 440.0, 370.0, 330.0, 294.0, 247.0]
+		"python3d_13": # World 14 Ancient Necropolis Harmonic
+			return [220.0, 262.0, 277.2, 349.0, 415.3, 349.0, 277.2, 220.0]
+		"python3d_14": # World 15 Steampunk Clockwork
+			return [294.0, 349.0, 440.0, 523.0, 440.0, 349.0, 330.0, 294.0]
+		"python3d_15": # World 16 Event Horizon Void
+			return [165.0, 220.0, 247.0, 330.0, 370.0, 330.0, 247.0, 165.0]
+		"python3d_16": # World 17 Dragon Dungeon Gothic
+			return [196.0, 233.1, 294.0, 392.0, 349.0, 294.0, 233.1, 196.0]
+		"python3d_17": # World 18 Quantum Citadel Boss
+			return [220.0, 277.2, 330.0, 440.0, 554.4, 659.0, 440.0, 330.0]
+		"hexa":
+			return [330.0, 415.3, 494.0, 659.3, 587.3, 494.0, 415.3, 330.0]
+		"sokoban":
+			return [247.0, 294.0, 330.0, 392.0, 330.0, 294.0, 247.0, 196.0]
+		"fifteen":
+			return [262.0, 330.0, 392.0, 523.0, 392.0, 330.0, 294.0, 262.0]
+		"pong":
+			return [392.0, 523.0, 587.3, 784.0, 587.3, 523.0, 440.0, 392.0]
+		"memory":
+			return [294.0, 349.2, 440.0, 523.0, 440.0, 349.2, 330.0, 294.0]
+		"codelock":
+			return [220.0, 0.0, 277.2, 330.0, 0.0, 392.0, 330.0, 277.2]
+		"bullscows":
+			return [262.0, 311.1, 392.0, 466.2, 392.0, 311.1, 294.0, 262.0]
+		"tictactoe":
+			return [349.2, 440.0, 523.0, 587.3, 523.0, 440.0, 392.0, 349.2]
+		"balda":
+			return [220.0, 294.0, 349.2, 440.0, 392.0, 349.2, 294.0, 262.0]
 		_:
 			return [262.0, 330.0, 392.0, 330.0]

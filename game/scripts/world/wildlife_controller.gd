@@ -7,6 +7,7 @@ var _player: Node3D
 
 var _ground_animals: Array[Dictionary] = []
 var _water_birds: Array[Dictionary] = []
+var _fish: Array[Dictionary] = []
 var _flying_birds: Array[Dictionary] = []
 var _bird_sound_t: float = 2.4
 var _duck_sound_t: float = 4.5
@@ -21,6 +22,7 @@ func setup(height_fn: Callable, water_level: float, player: Node3D) -> void:
 	_spawn_horses()
 	_spawn_stags()
 	_spawn_waterbirds()
+	_spawn_fish()
 	_spawn_flying_birds()
 
 
@@ -231,6 +233,86 @@ func _spawn_waterbirds() -> void:
 		})
 
 
+func _build_fish_node(body_col: Color, fin_col: Color) -> Dictionary:
+	var root := Node3D.new()
+	var bmat := StandardMaterial3D.new(); bmat.albedo_color = body_col; bmat.roughness = 0.25; bmat.metallic = 0.20
+	var fmat := StandardMaterial3D.new(); fmat.albedo_color = fin_col; fmat.roughness = 0.45
+	var emat := StandardMaterial3D.new(); emat.albedo_color = Color(0.06, 0.06, 0.08); emat.roughness = 0.1
+
+	var sm := SphereMesh.new(); sm.radius = 0.5; sm.height = 1.0
+	var body := MeshInstance3D.new(); body.mesh = sm; body.material_override = bmat
+	body.scale = Vector3(0.14, 0.20, 0.46)
+	root.add_child(body)
+
+	var dm := BoxMesh.new(); dm.size = Vector3(0.02, 0.11, 0.18)
+	var dorsal := MeshInstance3D.new(); dorsal.mesh = dm; dorsal.material_override = fmat
+	dorsal.position = Vector3(0.0, 0.11, -0.02); dorsal.rotation_degrees = Vector3(-16.0, 0.0, 0.0)
+	root.add_child(dorsal)
+
+	var pm := BoxMesh.new(); pm.size = Vector3(0.12, 0.02, 0.08)
+	for s in [-1.0, 1.0]:
+		var pec := MeshInstance3D.new(); pec.mesh = pm; pec.material_override = fmat
+		pec.position = Vector3(s * 0.08, -0.02, 0.05); pec.rotation_degrees = Vector3(0.0, -s * 28.0, -s * 18.0)
+		root.add_child(pec)
+		var eye := MeshInstance3D.new(); eye.mesh = sm; eye.material_override = emat
+		eye.scale = Vector3(0.032, 0.032, 0.032); eye.position = Vector3(s * 0.052, 0.035, 0.14)
+		root.add_child(eye)
+
+	var tail := Node3D.new(); tail.position = Vector3(0.0, 0.0, -0.20)
+	var tfm := BoxMesh.new(); tfm.size = Vector3(0.02, 0.16, 0.18)
+	var t_mi := MeshInstance3D.new(); t_mi.mesh = tfm; t_mi.material_override = fmat; t_mi.position = Vector3(0.0, 0.0, -0.08)
+	tail.add_child(t_mi)
+	root.add_child(tail)
+	return {"node": root, "tail": tail}
+
+
+func _spawn_fish() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4407
+	var zones := [
+		{"center": Vector2(-49.0, -21.0), "home": Vector2(-60.0, -25.0), "min_r": 1.5, "max_r": 9.5, "count": 9},
+		{"center": Vector2(-68.0, -28.0), "home": Vector2(-68.0, -28.0), "min_r": 3.0, "max_r": 24.0, "count": 9},
+		{"center": Vector2(72.0, 34.0), "home": Vector2(72.0, 34.0), "min_r": 4.0, "max_r": 26.0, "count": 8},
+		{"center": Vector2(18.0, 66.0), "home": Vector2(18.0, 66.0), "min_r": 2.0, "max_r": 12.0, "count": 6}
+	]
+	var palette := [
+		[Color(0.98, 0.48, 0.14), Color(1.0, 0.78, 0.35)],
+		[Color(0.72, 0.86, 0.96), Color(0.42, 0.62, 0.82)],
+		[Color(0.84, 0.68, 0.24), Color(0.98, 0.82, 0.42)],
+		[Color(0.92, 0.22, 0.18), Color(1.0, 0.88, 0.84)]
+	]
+	var ci := 0
+	for z in zones:
+		var c: Vector2 = z["center"]
+		var home: Vector2 = z["home"]
+		for _k in range(int(z["count"])):
+			for _try in range(25):
+				var ang := rng.randf() * TAU
+				var r := rng.randf_range(float(z["min_r"]), float(z["max_r"]))
+				var fx := c.x + cos(ang) * r
+				var fz := c.y + sin(ang) * r
+				if absf(fx) < 25.0 and absf(fz) < 15.0:
+					continue
+				var th := float(_height_fn.call(fx, fz))
+				if th < _water_level - 0.45:
+					var pal: Array = palette[ci % palette.size()]
+					ci += 1
+					var built := _build_fish_node(pal[0] as Color, pal[1] as Color)
+					var node: Node3D = built["node"]
+					var sc := rng.randf_range(0.85, 1.45)
+					node.scale = Vector3(sc, sc, sc)
+					var depth := rng.randf_range(0.24, maxf(0.26, minf(1.4, _water_level - th - 0.18)))
+					node.position = Vector3(fx, _water_level - depth, fz)
+					add_child(node)
+					_fish.append({
+						"node": node, "tail": built["tail"], "home": home,
+						"yaw": rng.randf() * TAU, "speed": rng.randf_range(1.1, 2.2),
+						"depth": depth, "turn_bias": rng.randf_range(-0.6, 0.6),
+						"turn_t": rng.randf_range(0.5, 2.5), "phase": rng.randf() * TAU
+					})
+					break
+
+
 func _spawn_flying_birds() -> void:
 	var stork_scene := load("res://assets/models/animals/Stork.glb") as PackedScene
 	var flamingo_scene := load("res://assets/models/animals/Flamingo.glb") as PackedScene
@@ -348,6 +430,35 @@ func _process(delta: float) -> void:
 		node.position = Vector3(nx, _water_level - 0.04 + bob, nz)
 		if look_dir.length_squared() > 0.00001:
 			node.rotation.y = lerp_angle(node.rotation.y, atan2(look_dir.x, look_dir.z), delta * 4.0)
+
+	for fk in _fish:
+		var node: Node3D = fk["node"]
+		var tail: Node3D = fk["tail"]
+		var yaw := float(fk["yaw"])
+		var spd := float(fk["speed"])
+		fk["turn_t"] = float(fk["turn_t"]) - delta
+		if float(fk["turn_t"]) <= 0.0:
+			fk["turn_t"] = randf_range(1.2, 3.2)
+			fk["turn_bias"] = randf_range(-0.65, 0.65)
+		if _player and node.global_position.distance_to(_player.global_position) < 6.0:
+			spd *= 1.65
+		var nx := node.position.x + sin(yaw) * spd * delta
+		var nz := node.position.z + cos(yaw) * spd * delta
+		var th := float(_height_fn.call(nx, nz))
+		if th > _water_level - 0.42 or (absf(nx) < 25.0 and absf(nz) < 15.0):
+			var home: Vector2 = fk["home"]
+			yaw = lerp_angle(yaw, atan2(home.x - node.position.x, home.y - node.position.z), clampf(delta * 4.5, 0.0, 1.0))
+			nx = node.position.x + sin(yaw) * spd * 0.4 * delta
+			nz = node.position.z + cos(yaw) * spd * 0.4 * delta
+			th = float(_height_fn.call(nx, nz))
+		else:
+			yaw += float(fk["turn_bias"]) * delta
+		fk["yaw"] = yaw
+		var fy := clampf(_water_level - float(fk["depth"]) + sin(t * 1.9 + float(fk["phase"])) * 0.06, th + 0.16, _water_level - 0.22)
+		node.position = Vector3(nx, fy, nz)
+		node.rotation.y = yaw
+		if tail:
+			tail.rotation.y = sin(t * spd * 8.5 + float(fk["phase"])) * 0.45
 
 	for fb in _flying_birds:
 		var node: Node3D = fb["node"]
