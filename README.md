@@ -27,7 +27,8 @@
 
 1. Запустіть `1_SETUP.bat` — скрипт автоматично завантажить **Godot 4.7.2**, плагіни (`Terrain3D`, `Sky3D`, `SimpleGrassTextured`, `CosmoTreeGen`), PBR/CC0 асети (`_fetch_assets.ps1`), створить конфіг і імпортує проєкт.
 2. Запустіть гру одним із лаунчерів:
-   - `2_RUN.bat` — стандартний режим **Vulkan / Forward+**;
+   - `2_RUN.bat` — інтерактивний вибір лаунчера (`2_RUN_Vulkan` / `2_RUN_DX12` / `2_RUN_OpenGL`) клавішами `↑` / `↓` (або `1–3`), підтвердження — `Enter`, вихід — `Esc`;
+   - `2_RUN_Vulkan.bat` — примусовий запуск на **Vulkan / Forward+**;
    - `2_RUN_DX12.bat` — **Direct3D 12 / Forward+**;
    - `2_RUN_OpenGL.bat` — режим сумісності **OpenGL 3**.
 
