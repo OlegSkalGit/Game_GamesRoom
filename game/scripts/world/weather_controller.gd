@@ -33,6 +33,10 @@ var _lightning_flash: float = 0.0
 
 var _rain_particles: GPUParticles3D
 var _lightning_light: DirectionalLight3D
+var _ferris_wheel
+var _casino_room
+var _road_bulb_mat: StandardMaterial3D
+var _last_hud_min: int = -1
 
 
 func setup(p_sky: Sky3D, p_water_mat: ShaderMaterial, p_foliage_mats: Array[ShaderMaterial], p_player: Node3D) -> void:
@@ -43,6 +47,76 @@ func setup(p_sky: Sky3D, p_water_mat: ShaderMaterial, p_foliage_mats: Array[Shad
 	_build_rain_particles()
 	_build_lightning()
 	set_weather_mode(int(ConfigManager.graphics.get("weather_mode", 0)))
+	apply_time_settings()
+
+
+func bind_world_lights(p_ferris, p_casino, p_road_bulb_mat: StandardMaterial3D) -> void:
+	_ferris_wheel = p_ferris
+	_casino_room = p_casino
+	_road_bulb_mat = p_road_bulb_mat
+	_sync_darkness_lights()
+
+
+func apply_time_settings() -> void:
+	if sky3d == null:
+		return
+	var dur := clampf(float(ConfigManager.graphics.get("day_duration_min", 28.0)), 1.0, 60.0)
+	sky3d.minutes_per_day = dur
+	sky3d.update_interval = clampf(dur / 300.0, 0.016, 0.08)
+	var t_mode := clampi(int(ConfigManager.graphics.get("day_time_mode", 0)), 0, 4)
+	match t_mode:
+		0:
+			sky3d.game_time_enabled = true
+		1:
+			sky3d.game_time_enabled = false
+			sky3d.current_time = 6.0
+		2:
+			sky3d.game_time_enabled = false
+			sky3d.current_time = 13.0
+		3:
+			sky3d.game_time_enabled = false
+			sky3d.current_time = 19.6
+		4:
+			sky3d.game_time_enabled = false
+			sky3d.current_time = 23.5
+	_sync_darkness_lights()
+
+
+func get_sun_y() -> float:
+	if sky3d and sky3d.sky:
+		return sky3d.sky._sun_transform.origin.y
+	return 1.0
+
+
+func get_darkness_factor() -> float:
+	# Sunset starts glowing smoothly below ~8.5 deg above horizon (sun_y <= 0.15) into full night (<= 0.04)
+	return clampf((0.15 - get_sun_y()) / 0.11, 0.0, 1.0)
+
+
+func is_dark_time() -> bool:
+	return get_sun_y() < 0.14
+
+
+func get_time_label() -> String:
+	if sky3d == null:
+		return ConfigManager.t("phase_day")
+	var t := sky3d.current_time
+	var hh := int(floor(t)) % 24
+	var mm := int(floor(fmod(t, 1.0) * 60.0)) % 60
+	var sy := get_sun_y()
+	var p_key := "phase_night" if sy < 0.0 else ("phase_sunset" if sy < 0.14 and t >= 12.0 else ("phase_dawn" if sy < 0.14 else ("phase_morning" if t < 10.0 else "phase_day")))
+	return "%02d:%02d (%s)" % [hh, mm, ConfigManager.t(p_key)]
+
+
+func _sync_darkness_lights() -> void:
+	var is_dark := is_dark_time()
+	var dark_k := get_darkness_factor()
+	if is_instance_valid(_ferris_wheel):
+		_ferris_wheel.set_darkness(is_dark, dark_k)
+	if is_instance_valid(_casino_room):
+		_casino_room.set_searchlights_active(is_dark, dark_k)
+	if _road_bulb_mat:
+		_road_bulb_mat.emission_energy_multiplier = 2.4 * dark_k if is_dark else 0.0
 
 
 func set_weather_mode(mode: int) -> void:
@@ -57,7 +131,7 @@ func set_weather_mode(mode: int) -> void:
 
 
 func get_weather_label() -> String:
-	return WEATHER_LABELS[clampi(_target_weather, 0, WEATHER_LABELS.size() - 1)]
+	return ConfigManager.t("w_lbl_%d" % clampi(_target_weather, 0, 4))
 
 
 func get_rain_amount() -> float:
@@ -66,6 +140,33 @@ func get_rain_amount() -> float:
 
 func get_wind_strength() -> float:
 	return _wind_strength
+
+
+func get_save_state() -> Dictionary:
+	return {
+		"sky_time": sky3d.current_time if sky3d else 15.8,
+		"weather_mode": int(ConfigManager.graphics.get("weather_mode", 0)),
+		"current_weather": _current_weather,
+		"target_weather": _target_weather,
+		"cycle_timer": _cycle_timer
+	}
+
+
+func apply_save_state(st: Dictionary) -> void:
+	if st.has("weather_mode"):
+		ConfigManager.graphics["weather_mode"] = clampi(int(st["weather_mode"]), 0, 5)
+		_mode = int(ConfigManager.graphics["weather_mode"])
+	if sky3d and st.has("sky_time"):
+		sky3d.current_time = float(st["sky_time"])
+	if st.has("current_weather"):
+		_current_weather = clampi(int(st["current_weather"]), 0, 4)
+	if st.has("target_weather"):
+		_target_weather = clampi(int(st["target_weather"]), 0, 4)
+	_cycle_timer = float(st.get("cycle_timer", 0.0))
+	_blend = 0.99
+	_sync_darkness_lights()
+	_process(0.016)
+	weather_state_changed.emit(get_weather_label())
 
 
 func _build_rain_particles() -> void:
@@ -112,6 +213,12 @@ func _build_lightning() -> void:
 func _process(delta: float) -> void:
 	if sky3d == null:
 		return
+
+	_sync_darkness_lights()
+	var hud_min := int(floor(sky3d.current_time * 60.0)) % 1440
+	if hud_min != _last_hud_min:
+		_last_hud_min = hud_min
+		weather_state_changed.emit(get_weather_label())
 
 	if _mode == 0:
 		_cycle_timer += delta

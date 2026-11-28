@@ -17,6 +17,8 @@ var _hud_layer: CanvasLayer
 var _prompt_panel: PanelContainer
 var _prompt_lbl: Label
 var _status_lbl: Label
+var _fps_lbl: Label
+var _fps_accum: float = 0.0
 var _quest_hud_panel: PanelContainer
 var _quest_hud_lbl: Label
 var _quest_journal_panel: PanelContainer
@@ -43,6 +45,10 @@ var _saved_cam_tf: Transform3D
 var _active_painting_id: String = ""
 var _games_map_panel: PanelContainer
 var _games_map_lbl: Label
+var _games_map_title: Label
+var _games_map_hint: Label
+var _quest_journal_title: Label
+var _quest_journal_hint: Label
 var _roulette_ui
 var _roulette_cam: Camera3D
 var _in_roulette: bool = false
@@ -119,7 +125,11 @@ func _ready() -> void:
 	add_child(_menu)
 	_menu.new_game_requested.connect(_on_new_game_requested)
 	_menu.resume_requested.connect(_on_resume_requested)
+	_menu.save_game_requested.connect(quick_save)
+	_menu.load_game_requested.connect(quick_load)
 	_menu.weather_changed.connect(_on_weather_changed)
+	_menu.time_settings_changed.connect(_on_time_settings_changed)
+	ConfigManager.language_changed.connect(_on_language_changed)
 
 	if _world.weather:
 		_world.weather.weather_state_changed.connect(_update_status_hud)
@@ -206,24 +216,24 @@ func _build_hud() -> void:
 	var jv := VBoxContainer.new()
 	jv.add_theme_constant_override("separation", 10)
 	_quest_journal_panel.add_child(jv)
-	var jtitle := Label.new()
-	jtitle.text = "📜 ЖУРНАЛ КВЕСТІВ КАЗИНО"
-	jtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	jtitle.add_theme_font_size_override("font_size", 22)
-	jtitle.add_theme_color_override("font_color", Color(0.98, 0.84, 0.34))
-	jv.add_child(jtitle)
+	_quest_journal_title = Label.new()
+	_quest_journal_title.text = ConfigManager.t("q_journal_title")
+	_quest_journal_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_quest_journal_title.add_theme_font_size_override("font_size", 22)
+	_quest_journal_title.add_theme_color_override("font_color", Color(0.98, 0.84, 0.34))
+	jv.add_child(_quest_journal_title)
 	_quest_journal_lbl = Label.new()
 	_quest_journal_lbl.add_theme_font_size_override("font_size", 14)
 	_quest_journal_lbl.add_theme_color_override("font_color", Color(0.90, 0.92, 0.88))
 	_quest_journal_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_quest_journal_lbl.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	jv.add_child(_quest_journal_lbl)
-	var jhint := Label.new()
-	jhint.text = "Натисніть [Q] або [Esc], щоб закрити"
-	jhint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	jhint.add_theme_font_size_override("font_size", 13)
-	jhint.add_theme_color_override("font_color", Color(0.75, 0.82, 0.76))
-	jv.add_child(jhint)
+	_quest_journal_hint = Label.new()
+	_quest_journal_hint.text = ConfigManager.t("q_journal_hint")
+	_quest_journal_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_quest_journal_hint.add_theme_font_size_override("font_size", 13)
+	_quest_journal_hint.add_theme_color_override("font_color", Color(0.75, 0.82, 0.76))
+	jv.add_child(_quest_journal_hint)
 
 	# Interactive Games Directory Map Overlay
 	_games_map_panel = PanelContainer.new()
@@ -238,24 +248,24 @@ func _build_hud() -> void:
 	var mv := VBoxContainer.new()
 	mv.add_theme_constant_override("separation", 10)
 	_games_map_panel.add_child(mv)
-	var mtitle := Label.new()
-	mtitle.text = "🗺 ПЛАН ТА КАРТА ІГОР КАЗИНО (34 ГРИ)"
-	mtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	mtitle.add_theme_font_size_override("font_size", 21)
-	mtitle.add_theme_color_override("font_color", Color(0.98, 0.86, 0.36))
-	mv.add_child(mtitle)
+	_games_map_title = Label.new()
+	_games_map_title.text = ConfigManager.t("map_modal_title")
+	_games_map_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_games_map_title.add_theme_font_size_override("font_size", 21)
+	_games_map_title.add_theme_color_override("font_color", Color(0.98, 0.86, 0.36))
+	mv.add_child(_games_map_title)
 	_games_map_lbl = Label.new()
 	_games_map_lbl.add_theme_font_size_override("font_size", 14)
 	_games_map_lbl.add_theme_color_override("font_color", Color(0.92, 0.94, 0.90))
 	_games_map_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_games_map_lbl.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	mv.add_child(_games_map_lbl)
-	var mhint := Label.new()
-	mhint.text = "Стенд розташовано зліва біля південного виходу  |  Натисніть [E] або [Esc], щоб закрити"
-	mhint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	mhint.add_theme_font_size_override("font_size", 13)
-	mhint.add_theme_color_override("font_color", Color(0.75, 0.84, 0.78))
-	mv.add_child(mhint)
+	_games_map_hint = Label.new()
+	_games_map_hint.text = ConfigManager.t("map_modal_hint")
+	_games_map_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_games_map_hint.add_theme_font_size_override("font_size", 13)
+	_games_map_hint.add_theme_color_override("font_color", Color(0.75, 0.84, 0.78))
+	mv.add_child(_games_map_hint)
 
 	# Bottom Racing HUD bar
 	_race_hud_lbl = Label.new()
@@ -322,6 +332,22 @@ func _build_hud() -> void:
 	_portal_overlay.visible = false
 	portal_layer.add_child(_portal_overlay)
 
+	# Lightweight FPS Overlay (layer 60 so visible both in gameplay & Settings menu)
+	var fps_layer := CanvasLayer.new()
+	fps_layer.layer = 60
+	add_child(fps_layer)
+	_fps_lbl = Label.new()
+	_fps_lbl.position = Vector2(18, 38)
+	_fps_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_fps_lbl.add_theme_font_size_override("font_size", 15)
+	_fps_lbl.add_theme_color_override("font_color", Color(0.62, 0.96, 0.54, 0.95))
+	_fps_lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.85))
+	_fps_lbl.add_theme_constant_override("shadow_offset_x", 1)
+	_fps_lbl.add_theme_constant_override("shadow_offset_y", 1)
+	fps_layer.add_child(_fps_lbl)
+	ConfigManager.display_changed.connect(_sync_fps_overlay)
+	_sync_fps_overlay()
+
 
 func _build_binoculars() -> void:
 	_bino_cam = Camera3D.new()
@@ -387,8 +413,8 @@ func _draw_bino_overlay() -> void:
 	_bino_ctrl.draw_line(mid - Vector2(0, 36), mid - Vector2(0, 10), Color(0.32, 0.96, 0.68, 0.85), 1.5)
 	_bino_ctrl.draw_line(mid + Vector2(0, 10), mid + Vector2(0, 36), Color(0.32, 0.96, 0.68, 0.85), 1.5)
 
-	var f := ThemeDB.fallback_font
-	_bino_ctrl.draw_string(f, Vector2(24, sz.y - 26), "БІНОКЛЬ  |  Зум: %.1fx  |  Коліщатко миші / [+]/[-] — зум  |  Миша — огляд  |  [E] або [Esc] — вийти" % _bino_zoom, HORIZONTAL_ALIGNMENT_CENTER, sz.x - 48, 16, Color(0.95, 0.96, 0.82))
+	var f := ConfigManager.get_ui_font()
+	_bino_ctrl.draw_string(f, Vector2(24, sz.y - 26), ConfigManager.t("bino_hud") % _bino_zoom, HORIZONTAL_ALIGNMENT_CENTER, sz.x - 48, 16, Color(0.95, 0.96, 0.82))
 
 
 func _refresh_quest_ui() -> void:
@@ -426,13 +452,46 @@ func _show_toast(msg: String) -> void:
 		_toast_t = 3.0
 
 
+func _sync_fps_overlay() -> void:
+	if _fps_lbl == null:
+		return
+	var on := bool(ConfigManager.display.get("show_fps", false))
+	_fps_lbl.visible = on
+	if on:
+		_fps_lbl.text = ConfigManager.t("fps_overlay") % int(round(Engine.get_frames_per_second()))
+
+
 func _update_status_hud(_unused: String) -> void:
 	if _status_lbl == null or _world == null or _world.weather == null:
 		return
-	_status_lbl.text = "Погода: %s  |  [Esc] Меню  |  [F] Ліхтар" % _world.weather.get_weather_label()
+	_status_lbl.text = ConfigManager.t("hud_status") % [_world.weather.get_weather_label(), _world.weather.get_time_label()]
+
+
+func _on_language_changed() -> void:
+	if _quest_journal_title:
+		_quest_journal_title.text = ConfigManager.t("q_journal_title")
+	if _quest_journal_hint:
+		_quest_journal_hint.text = ConfigManager.t("q_journal_hint")
+	if _games_map_title:
+		_games_map_title.text = ConfigManager.t("map_modal_title")
+	if _games_map_hint:
+		_games_map_hint.text = ConfigManager.t("map_modal_hint")
+	if _games_map_lbl and _world and _world.casino_room:
+		_games_map_lbl.text = _world.casino_room.get_games_map_text()
+	_refresh_quest_ui()
+	_sync_fps_overlay()
+	_update_status_hud("")
+	if _bino_ctrl and _in_binoculars:
+		_bino_ctrl.queue_redraw()
 
 
 func _process(delta: float) -> void:
+	if _fps_lbl and _fps_lbl.visible:
+		_fps_accum += delta
+		if _fps_accum >= 0.25:
+			_fps_accum = 0.0
+			_fps_lbl.text = ConfigManager.t("fps_overlay") % int(round(Engine.get_frames_per_second()))
+
 	if _toast_t > 0.0:
 		_toast_t -= delta
 		if _toast_t <= 0.0 and _toast_panel:
@@ -448,7 +507,12 @@ func _process(delta: float) -> void:
 		_bino_cam.fov = clampf(72.0 / _bino_zoom, 5.0, 38.0)
 
 	if _world and _world.weather and _player:
-		var p: Vector3 = _race_car.global_position if (_is_driving and _race_car) else _player.global_position
+		var focus_node: Node3D = _race_car if (_is_driving and _race_car) else _player
+		var p: Vector3 = focus_node.global_position
+		if _is_driving and _race_car:
+			var sg_singleton := get_node_or_null("/root/SimpleGrass")
+			if sg_singleton:
+				sg_singleton.call("set_player_position", p)
 		if _quests and _menu and not _menu.visible:
 			if not _is_driving and p.y < 4.5 and absf(p.x) < 20.0 and absf(p.z) < 9.0:
 				if p.x >= -6.8 and p.x < 5.2:
@@ -484,6 +548,20 @@ func _process(delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if event is InputEventKey:
+		var hk := event as InputEventKey
+		if hk.pressed and not hk.echo:
+			if hk.physical_keycode == KEY_F5:
+				if _menu and _menu.is_game_started and not _transitioning:
+					get_viewport().set_input_as_handled()
+					quick_save()
+				return
+			elif hk.physical_keycode == KEY_F9:
+				if not _transitioning:
+					get_viewport().set_input_as_handled()
+					quick_load()
+				return
+
 	if _is_driving:
 		return
 
@@ -564,19 +642,161 @@ func _pause_to_menu() -> void:
 	_menu.open_menu()
 
 
+func _abort_active_modes() -> void:
+	if _minigame_host and _minigame_host.is_active():
+		_minigame_host.close_game()
+	if _world and _world.casino_room and _active_painting_id != "":
+		_world.casino_room.set_painting_transition(_active_painting_id, 0.0, 2.2)
+	_active_painting_id = ""
+	if _portal_overlay:
+		_portal_overlay.visible = false
+	if _in_roulette:
+		_in_roulette = false
+		if _roulette_ui:
+			_roulette_ui.close_overlay()
+		if _roulette_cam:
+			_roulette_cam.current = false
+		if _world and _world.casino_room:
+			_world.casino_room.update_roulette_chips({})
+		_active_roulette_bets.clear()
+	if _in_binoculars:
+		_in_binoculars = false
+		if _bino_layer:
+			_bino_layer.visible = false
+		if _bino_cam:
+			_bino_cam.current = false
+	if _quest_journal_panel:
+		_quest_journal_panel.visible = false
+	if _games_map_panel:
+		_games_map_panel.visible = false
+
+
+func quick_save() -> bool:
+	if _transitioning or _menu == null or not _menu.is_game_started:
+		return false
+	var race_st: Dictionary = _race_car.get_save_state()
+	if _world and _world.race_track:
+		race_st.merge(_world.race_track.get_save_state(), true)
+	race_st["is_driving"] = _is_driving
+	var world_st: Dictionary = _world.weather.get_save_state() if (_world and _world.weather) else {}
+	if _world and _world.ferris_wheel:
+		world_st["ferris_angle"] = _world.ferris_wheel.get_save_angle()
+	if _world and _world.casino_room:
+		world_st["disco_mode"] = _world.casino_room.is_disco_enabled()
+	var payload := {
+		"player": _player.get_save_state(),
+		"race": race_st,
+		"world": world_st,
+		"quests": _quests.get_save_state() if _quests else {}
+	}
+	if ConfigManager.save_game_state(payload) == OK:
+		AudioSfx.play_ui_click()
+		_show_toast(ConfigManager.t("toast_saved"))
+		return true
+	return false
+
+
+func quick_load() -> bool:
+	if _transitioning or not ConfigManager.has_save():
+		_show_toast(ConfigManager.t("toast_no_save"))
+		return false
+	var st := ConfigManager.load_game_state()
+	if st.is_empty():
+		_show_toast(ConfigManager.t("toast_no_save"))
+		return false
+
+	if is_instance_valid(_intro):
+		_intro.skip(true)
+	_abort_active_modes()
+	if _menu:
+		_menu.close_menu()
+		_menu.set_game_started(true)
+
+	var world_st: Dictionary = st.get("world", {}) as Dictionary
+	if _world:
+		if _world.ferris_wheel and world_st.has("ferris_angle"):
+			_world.ferris_wheel.set_save_angle(float(world_st["ferris_angle"]))
+		if _world.casino_room and world_st.has("disco_mode"):
+			_world.casino_room.set_disco_enabled(bool(world_st["disco_mode"]))
+		if _world.weather:
+			_world.weather.apply_save_state(world_st)
+	if _quests:
+		_quests.apply_save_state(st.get("quests", {}) as Dictionary)
+
+	_player.apply_save_state(st.get("player", {}) as Dictionary)
+	var race_st: Dictionary = st.get("race", {}) as Dictionary
+	if _world and _world.race_track:
+		_world.race_track.apply_save_state(race_st)
+
+	var want_driving := bool(race_st.get("is_driving", false))
+	if want_driving and _race_car:
+		_is_driving = true
+		_player.set_controls_active(false)
+		_prompt_panel.visible = false
+		_race_hud_lbl.visible = true
+		_race_car.apply_save_state(race_st)
+		if _world:
+			_world.set_world_focus(_race_car, true)
+	else:
+		if _is_driving and _race_car:
+			_is_driving = false
+			_race_car.stop_race()
+			_race_hud_lbl.visible = false
+			if _race_banner_panel:
+				_race_banner_panel.visible = false
+		_player.get_camera().current = true
+		if _world:
+			_world.set_world_focus(_player, true)
+		_player.set_controls_active(true)
+		if DisplayServer.get_name() == "headless":
+			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+	if _world and _world.weather:
+		_world.weather._process(0.016)
+	_status_lbl.visible = true
+	if _quest_hud_panel:
+		_quest_hud_panel.visible = true
+	_update_status_hud("")
+	_refresh_quest_ui()
+	AudioSfx.play_switch()
+	_show_toast(ConfigManager.t("toast_loaded"))
+	return true
+
+
 func _on_new_game_requested() -> void:
 	if is_instance_valid(_intro):
 		_intro.skip(true)
+	_abort_active_modes()
+	if _is_driving and _race_car:
+		_is_driving = false
+		_race_car.stop_race()
+		_race_hud_lbl.visible = false
+		if _race_banner_panel:
+			_race_banner_panel.visible = false
+	if _quests:
+		_quests.apply_save_state({})
+	if _world and _world.casino_room:
+		_world.casino_room.set_disco_enabled(false)
 	_menu.close_menu()
 	_menu.set_game_started(true)
 	_player.reset_to_casino_spawn()
+	_player.get_camera().current = true
+	if _world:
+		_world.set_world_focus(_player, true)
+		if _world.weather:
+			_world.weather._process(0.016)
 	_player.set_controls_active(true)
 	_status_lbl.visible = true
 	if _quest_hud_panel: _quest_hud_panel.visible = true
 
 
 func _on_resume_requested() -> void:
-	_player.set_controls_active(true)
+	if _is_driving and _race_car:
+		_race_car._cam.current = true
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	else:
+		_player.get_camera().current = true
+		_player.set_controls_active(true)
 	_status_lbl.visible = true
 	if _quest_hud_panel: _quest_hud_panel.visible = true
 
@@ -587,12 +807,18 @@ func _on_weather_changed(mode: int) -> void:
 		_update_status_hud("")
 
 
+func _on_time_settings_changed() -> void:
+	if _world and _world.weather:
+		_world.weather.apply_time_settings()
+		_update_status_hud("")
+
+
 func _on_target_painting_changed(painting_id: String, title: String) -> void:
 	if painting_id == "" or not _player.controls_enabled:
 		if _player._targeted_prop_id == "":
 			_prompt_panel.visible = false
 	else:
-		_prompt_lbl.text = "[E] або [ЛКМ] — Увійти в картину: «%s»" % title
+		_prompt_lbl.text = ConfigManager.t("hud_prompt_paint") % ConfigManager.t("g_" + painting_id, title)
 		_prompt_panel.visible = true
 
 
@@ -601,7 +827,7 @@ func _on_target_prop_changed(prop_id: String, title: String) -> void:
 		if _player._targeted_painting_id == "":
 			_prompt_panel.visible = false
 	else:
-		_prompt_lbl.text = "[E] або [ЛКМ] — %s" % title
+		_prompt_lbl.text = ConfigManager.t("hud_prompt_prop") % ConfigManager.t("prop_" + prop_id, title)
 		_prompt_panel.visible = true
 
 
@@ -640,6 +866,9 @@ func _start_race() -> void:
 	_prompt_panel.visible = false
 	_race_hud_lbl.visible = true
 	_race_car.start_race()
+	_race_car.reset_physics_interpolation()
+	if _world:
+		_world.set_world_focus(_race_car, true)
 
 
 func _exit_race() -> void:
@@ -652,9 +881,15 @@ func _exit_race() -> void:
 		_race_banner_panel.visible = false
 	_player.global_position = Vector3(-16.0, 6.45, 63.5)
 	_player.velocity = Vector3.ZERO
+	_player.reset_physics_interpolation()
+	_player.get_camera().reset_physics_interpolation()
 	_player.get_camera().current = true
+	if _world:
+		_world.set_world_focus(_player, true)
+		if _world.weather:
+			_world.weather._process(0.016)
 	_player.set_controls_active(true)
-	_show_toast("Ви припаркувались біля зупинки траси!")
+	_show_toast(ConfigManager.t("toast_parked"))
 
 
 func _on_race_banner_updated(text: String, color: Color, show: bool) -> void:
@@ -670,7 +905,7 @@ func _on_race_completed(rank: int, _race_time: float) -> void:
 	if _quests:
 		var bonus := 250 if rank == 1 else (150 if rank <= 3 else 75)
 		_quests.add_chips(bonus)
-		_show_toast("🏁 Фініш 3 кіл (%d/5 місце)! +%d фішок" % [rank, bonus])
+		_show_toast(ConfigManager.t("toast_race_done") % [rank, bonus])
 
 
 func _on_interact_prop_requested(prop_id: String) -> void:
@@ -688,21 +923,21 @@ func _on_interact_prop_requested(prop_id: String) -> void:
 			if _quests:
 				if _quests.record_step("vault_heist", "vault_safe"):
 					_quests.add_chips(80)
-					_show_toast("🔓 Сейф зламано! Знайдено +80 золотих фішок!")
+					_show_toast(ConfigManager.t("toast_vault_new"))
 				else:
-					_show_toast("🔓 Сейф уже порожній — усе золото ваше!")
+					_show_toast(ConfigManager.t("toast_vault_empty"))
 			AudioSfx.play_coin()
 		"relic_cup":
 			if _quests: _quests.record_any("relic_cup")
-			_show_toast("🏆 Артефакт #1: Золотий Кубок Виставкового Залу!")
+			_show_toast(ConfigManager.t("toast_relic_cup"))
 			AudioSfx.play_coin()
 		"relic_amphora":
 			if _quests: _quests.record_any("relic_amphora")
-			_show_toast("🏺 Артефакт #2: Винна Амфора 1898 року!")
+			_show_toast(ConfigManager.t("toast_relic_amphora"))
 			AudioSfx.play_coin()
 		"relic_sapphire":
 			if _quests: _quests.record_any("relic_sapphire")
-			_show_toast("💎 Артефакт #3: Безцінний Королівський Сапфір!")
+			_show_toast(ConfigManager.t("toast_relic_sapphire"))
 			AudioSfx.play_coin()
 		"slot_left":
 			if _world and _world.casino_room:
@@ -718,16 +953,16 @@ func _on_interact_prop_requested(prop_id: String) -> void:
 			if _world and _world.casino_room:
 				var on := _world.casino_room.toggle_disco()
 				if _quests: _quests.record_any("disco_button")
-				_show_toast("🕺 ВІП-ДИСКО %s!" % ("АКТИВОВАНО" if on else "вимкнено"))
+				_show_toast(ConfigManager.t("toast_disco_on" if on else "toast_disco_off"))
 		"duck_horn":
 			AudioSfx.play_duck_call(-0.5)
 			AudioSfx.play_duck_call(0.5)
-			_show_toast("🦆 Кря-кря! Качки на озері почули ваш сигнал!")
+			_show_toast(ConfigManager.t("toast_duck"))
 		"bounce_shroom":
 			_player.velocity.y = 21.5
 			if _quests: _quests.record_any("bounce_shroom")
 			AudioSfx.play_boing_launch()
-			_show_toast("🍄 Стрибок над сосновою долиною!")
+			_show_toast(ConfigManager.t("toast_shroom"))
 		"weather_altar":
 			if _world and _world.weather:
 				var cur_mode := int(ConfigManager.graphics.get("weather_mode", 0))
@@ -739,7 +974,7 @@ func _on_interact_prop_requested(prop_id: String) -> void:
 				_update_status_hud("")
 				if _quests: _quests.record_any("weather_altar")
 				AudioSfx.play_powerup()
-				_show_toast("⛅ Вівтар змінив погоду: %s" % _world.weather.get_weather_label())
+				_show_toast(ConfigManager.t("toast_altar") % _world.weather.get_weather_label())
 
 
 func _on_interact_painting_requested(painting_id: String) -> void:
@@ -854,7 +1089,7 @@ func _enter_roulette_game() -> void:
 		if int(_quests.chips) < 50:
 			var bonus: int = 200 - int(_quests.chips)
 			_quests.add_chips(bonus)
-			_show_toast("🎁 Вітальний стек казино: +%d фішок для 3D-рулетки!" % bonus)
+			_show_toast(ConfigManager.t("toast_welcome_chips") % bonus)
 
 	var p_cam := _player.get_camera()
 	var table_center := table.global_position
@@ -920,7 +1155,7 @@ func _on_roulette_spin_finished(win_num: int) -> void:
 		_roulette_ui.on_spin_result(win_num, won, _quests.chips if _quests else 0)
 	_active_roulette_bets.clear()
 	if won > 0:
-		_show_toast("🎡 %s — Виграш +%d фішок!" % [RouletteOverlayScript.pocket_color_tag(win_num), won])
+		_show_toast(ConfigManager.t("toast_roulette_win", "🎡 %s — +%d!") % [RouletteOverlayScript.pocket_color_tag(win_num), won])
 
 
 func _exit_roulette_game() -> void:

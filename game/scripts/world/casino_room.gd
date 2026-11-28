@@ -10,54 +10,56 @@ const EURO_WHEEL: Array[int] = [
 ]
 const RED_NUMS: Array[int] = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]
 
-# 34 completely unique games across Casino, Underground Complex & Mansard Gallery:
-# Main Hall (7), West Strategy Lounge (5), East Arcade Landing (1),
-# Basement Card Club (3), Basement Exhibition Hall Tripods (6), Wine Cellar & Vault Tripods (2), Mansard Gallery Tripods (10)
+# 34 completely unique games organized strictly by theme across House of Games:
+# Main Hall (7 Arcade/Shooters/Paddles), West Hall (5 Board Games), East Landing (1 Sports),
+# Basement Card Club (4 Card Games), Basement Tiles & Puzzles Hall (6 Tripods),
+# Basement Cellar (1 Logic) & Vault (1 Code Lock), Mansard Attic (9 Snakes, Falcon, Grid Logic & Words)
 const PAINTING_SPECS: Array[Dictionary] = [
+	# 1F Main Hall: Retro Arcade, Shooters & Ball-Paddle Sports
 	{"id": "mario", "title": "Маріо", "pos": Vector3(-5.2, 2.75, -8.68), "yaw": 0.0},
-	{"id": "tetris", "title": "Тетріс", "pos": Vector3(0.0, 2.75, -8.68), "yaw": 0.0},
-	{"id": "snake", "title": "Змійка 3D", "pos": Vector3(5.2, 2.75, -8.68), "yaw": 0.0},
-	{"id": "bomberman", "title": "Бомбермен", "pos": Vector3(-8.68, 2.75, -5.2), "yaw": PI * 0.5},
-	{"id": "arkanoid", "title": "Арканоїд", "pos": Vector3(-8.68, 2.75, 5.2), "yaw": PI * 0.5},
-	{"id": "arcade", "title": "Космічна Аркада", "pos": Vector3(8.68, 2.75, -5.2), "yaw": -PI * 0.5},
-	{"id": "tanks", "title": "Танчики", "pos": Vector3(8.68, 2.75, 5.2), "yaw": -PI * 0.5},
+	{"id": "pacman", "title": "Пак-Лабіринт", "pos": Vector3(0.0, 2.75, -8.68), "yaw": 0.0},
+	{"id": "bomberman", "title": "Бомбермен", "pos": Vector3(5.2, 2.75, -8.68), "yaw": 0.0},
+	{"id": "arcade", "title": "Космічна Аркада", "pos": Vector3(-8.68, 2.75, -5.2), "yaw": PI * 0.5},
+	{"id": "tanks", "title": "Танчики", "pos": Vector3(-8.68, 2.75, 5.2), "yaw": PI * 0.5},
+	{"id": "arkanoid", "title": "Арканоїд", "pos": Vector3(8.68, 2.75, -5.2), "yaw": -PI * 0.5},
+	{"id": "pong", "title": "Теніс (Pong)", "pos": Vector3(8.68, 2.75, 5.2), "yaw": -PI * 0.5},
 
-	# West Strategy Lounge (X: -20 .. -9)
-	{"id": "soccer", "title": "Соккер", "pos": Vector3(-14.5, 2.75, -8.68), "yaw": 0.0},
+	# 1F West Wing: Classic Board & Tabletop Strategy (X: -20 .. -9)
+	{"id": "tictactoe", "title": "Хрестики-Нулики", "pos": Vector3(-14.5, 2.75, -8.68), "yaw": 0.0},
 	{"id": "chess", "title": "Шахи", "pos": Vector3(-19.68, 2.75, -5.0), "yaw": PI * 0.5},
 	{"id": "checkers", "title": "Шашки", "pos": Vector3(-19.68, 2.75, 0.0), "yaw": PI * 0.5},
 	{"id": "corners", "title": "Уголки", "pos": Vector3(-19.68, 2.75, 5.0), "yaw": PI * 0.5},
 	{"id": "battleship", "title": "Морський бій", "pos": Vector3(-14.5, 2.75, 8.68), "yaw": PI},
 
-	# East Hall (X: +9 .. +20)
-	{"id": "pacman", "title": "Пак-Лабіринт", "pos": Vector3(14.5, 2.75, -8.68), "yaw": 0.0},
+	# 1F East Hall: Ball Sports (X: +9 .. +20)
+	{"id": "soccer", "title": "Соккер", "pos": Vector3(14.5, 2.75, -8.68), "yaw": 0.0},
 
-	# Basement Room 1: VIP Card Club (Y = -4.0, X: +5.2 .. +19.0)
+	# Basement Room 1: Card Club — all 4 Card Games (Y = -4.0, X: +5.2 .. +19.0)
 	{"id": "durak", "title": "Дурак", "pos": Vector3(8.0, -1.95, -8.12), "yaw": 0.0},
 	{"id": "blackjack", "title": "Блекджек", "pos": Vector3(12.2, -1.95, -8.12), "yaw": 0.0},
 	{"id": "poker", "title": "Покер", "pos": Vector3(5.68, -1.95, -4.5), "yaw": PI * 0.5},
+	{"id": "solitaire", "title": "Косинка", "pos": Vector3(8.6, -1.95, 8.12), "yaw": PI},
 
-	# Basement Room 2: Grand Exhibition Hall with Wooden Artist Tripods (X: -6.8 .. +5.2)
-	{"id": "2048", "title": "2048", "pos": Vector3(-3.3, -2.28, -4.4), "yaw": PI * 0.35, "easel": true},
-	{"id": "zuma", "title": "Зума", "pos": Vector3(-3.9, -2.28, 0.0), "yaw": PI * 0.50, "easel": true},
-	{"id": "puzzle", "title": "Пазли", "pos": Vector3(-3.3, -2.28, 4.4), "yaw": PI * 0.65, "easel": true},
+	# Basement Room 2: Tiles, Blocks & Color Puzzles on Tripods (X: -6.8 .. +5.2)
+	{"id": "tetris", "title": "Тетріс", "pos": Vector3(-3.3, -2.28, -4.4), "yaw": PI * 0.35, "easel": true},
+	{"id": "2048", "title": "2048", "pos": Vector3(-3.9, -2.28, 0.0), "yaw": PI * 0.50, "easel": true},
+	{"id": "hexa", "title": "Гекса", "pos": Vector3(-3.3, -2.28, 4.4), "yaw": PI * 0.65, "easel": true},
 	{"id": "match3", "title": "Самоцвіти", "pos": Vector3(2.2, -2.28, -5.2), "yaw": -PI * 0.30, "easel": true},
-	{"id": "minesweeper", "title": "Сапер", "pos": Vector3(2.2, -2.28, 5.2), "yaw": -PI * 0.70, "easel": true},
-	{"id": "solitaire", "title": "Косинка", "pos": Vector3(-0.6, -2.28, -6.5), "yaw": 0.0, "easel": true},
+	{"id": "zuma", "title": "Зума", "pos": Vector3(2.2, -2.28, 5.2), "yaw": -PI * 0.70, "easel": true},
+	{"id": "puzzle", "title": "Пазли", "pos": Vector3(-0.6, -2.28, -6.5), "yaw": 0.0, "easel": true},
 
-	# Basement Room 3 (Wine Cellar Tripod) & Room 4 (Vault Tripod)
-	{"id": "flappy", "title": "Сокіл Долини", "pos": Vector3(-11.2, -2.28, -6.1), "yaw": -0.45, "easel": true},
-	{"id": "sudoku", "title": "Судоку", "pos": Vector3(-11.2, -2.28, 6.1), "yaw": PI + 0.45, "easel": true},
+	# Basement Room 3 (Cellar Logic) & Room 4 (Bank Vault Code Lock)
+	{"id": "sudoku", "title": "Судоку", "pos": Vector3(-11.2, -2.28, -6.1), "yaw": -0.45, "easel": true},
+	{"id": "codelock", "title": "Кодовий замок", "pos": Vector3(-11.2, -2.28, 6.1), "yaw": PI + 0.45, "easel": true},
 
-	# Mansard Arcade Gallery with 10 Exhibition Tripods (Floor Y=+6.80 -> Easel Y=+8.52)
-	{"id": "python3d", "title": "Пітон", "pos": Vector3(12.6, 8.52, -4.6), "yaw": -0.22, "easel": true},
-	{"id": "hexa", "title": "Гекса", "pos": Vector3(12.6, 8.52, 4.6), "yaw": PI + 0.22, "easel": true},
-	{"id": "sokoban", "title": "Сокобан", "pos": Vector3(6.8, 8.52, -4.6), "yaw": 0.0, "easel": true},
-	{"id": "fifteen", "title": "П'ятнашки", "pos": Vector3(6.8, 8.52, 4.6), "yaw": PI, "easel": true},
-	{"id": "tictactoe", "title": "Хрестики-Нулики", "pos": Vector3(1.6, 8.52, -4.6), "yaw": 0.0, "easel": true},
-	{"id": "pong", "title": "Теніс (Pong)", "pos": Vector3(1.6, 8.52, 4.6), "yaw": PI, "easel": true},
+	# Mansard Gallery: Snakes & Flight (East), Grid Logic (Center), Memory & Word Games (West) (Floor Y=+6.80 -> Easel Y=+8.52)
+	{"id": "snake", "title": "Змійка 3D", "pos": Vector3(12.6, 8.52, -4.6), "yaw": -0.22, "easel": true},
+	{"id": "python3d", "title": "Пітон", "pos": Vector3(12.6, 8.52, 4.6), "yaw": PI + 0.22, "easel": true},
+	{"id": "flappy", "title": "Сокіл Долини", "pos": Vector3(7.2, 8.52, -4.6), "yaw": 0.0, "easel": true},
+	{"id": "sokoban", "title": "Сокобан", "pos": Vector3(7.2, 8.52, 4.6), "yaw": PI, "easel": true},
+	{"id": "fifteen", "title": "П'ятнашки", "pos": Vector3(1.8, 8.52, -4.6), "yaw": 0.0, "easel": true},
+	{"id": "minesweeper", "title": "Сапер", "pos": Vector3(1.8, 8.52, 4.6), "yaw": PI, "easel": true},
 	{"id": "memory", "title": "Меморі", "pos": Vector3(-3.6, 8.52, -4.6), "yaw": 0.0, "easel": true},
-	{"id": "codelock", "title": "Кодовий замок", "pos": Vector3(-3.6, 8.52, 4.6), "yaw": PI, "easel": true},
 	{"id": "bullscows", "title": "Бики та Корови", "pos": Vector3(-8.6, 8.52, -4.6), "yaw": 0.28, "easel": true},
 	{"id": "balda", "title": "Балда", "pos": Vector3(-8.6, 8.52, 4.6), "yaw": PI - 0.28, "easel": true}
 ]
@@ -84,9 +86,12 @@ var _arch_shadow_lights: Array[OmniLight3D] = []
 var _casino_probe: ReflectionProbe
 var _preview_drawer_nodes: Array[Dictionary] = []
 var _searchlights: Array[Dictionary] = []
+var _searchlights_active: bool = false
 var _preview_time: float = 0.0
 var _frame_counter: int = 0
 var _mat_cache: Dictionary = {}
+var _lang_labels: Array[Dictionary] = []
+var _board_views: Array[Dictionary] = []
 
 
 func _ready() -> void:
@@ -103,7 +108,33 @@ func _ready() -> void:
 	_build_roof_searchlights()
 	_build_interior_reflection_probe()
 	ConfigManager.graphics_changed.connect(_apply_lighting_quality)
+	ConfigManager.language_changed.connect(_refresh_language)
 	_apply_lighting_quality()
+
+
+func _reg_sign(lbl: Label3D, key: String) -> void:
+	lbl.font = ConfigManager.get_ui_font()
+	lbl.text = ConfigManager.t(key)
+	_lang_labels.append({"lbl": lbl, "key": key})
+
+
+func _refresh_language() -> void:
+	for entry in _lang_labels:
+		var lbl := entry["lbl"] as Label3D
+		if lbl:
+			lbl.text = ConfigManager.t(str(entry["key"]))
+	for p in paintings:
+		var title := ConfigManager.t("g_" + str(p["id"]), str(p["title"]))
+		p["title"] = title
+		var pl := p.get("plaque_lbl") as Label3D
+		if pl:
+			pl.text = title
+	for bv in _board_views:
+		var dr := bv["drawer"] as Control
+		var vp := bv["vp"] as SubViewport
+		if dr and vp:
+			dr.queue_redraw()
+			vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 
 
 func _mat(col: Color, rough: float = 0.7, metal: float = 0.0, emission: Color = Color.BLACK, emit_e: float = 0.0) -> StandardMaterial3D:
@@ -327,7 +358,7 @@ func _build_structure() -> void:
 	_add_box_body(self, Vector3(6.95, 0.10, 0.42), Vector3(0.0, 5.98, 9.45), marquee_glow, false)
 	_add_box_body(self, Vector3(6.95, 0.10, 0.42), Vector3(0.0, 4.92, 9.45), marquee_glow, false)
 	var sign_lbl := Label3D.new()
-	sign_lbl.text = "★ КАЗИНО • 34 ІГРИ ★"
+	_reg_sign(sign_lbl, "sign_marquee")
 	sign_lbl.position = Vector3(0.0, 5.45, 9.66)
 	sign_lbl.pixel_size = 0.0085
 	sign_lbl.font_size = 56
@@ -379,7 +410,7 @@ func _build_west_wing() -> void:
 
 	# Wing sign above arch
 	var lbl := Label3D.new()
-	lbl.text = "◀ ЗАЛ ШАХІВ ТА СТРАТЕГІЇ"
+	_reg_sign(lbl, "sign_west")
 	lbl.position = Vector3(-12.5, 4.55, 0.0)
 	lbl.rotation.y = PI * 0.5
 	lbl.pixel_size = 0.0055
@@ -439,7 +470,7 @@ func _build_east_wing_and_stairs() -> void:
 
 	# Staircase Sign
 	var lbl := Label3D.new()
-	lbl.text = "▼ СХОДИ У ПІДВАЛ • 4 ЗАЛИ ТА ВИСТАВКА"
+	_reg_sign(lbl, "sign_stairs")
 	lbl.position = Vector3(14.5, 3.85, -2.1)
 	lbl.pixel_size = 0.0052
 	lbl.font_size = 38
@@ -601,7 +632,7 @@ func _build_basement_vault() -> void:
 		_add_box_body(self, Vector3(0.75, 0.92, 0.75), Vector3(17.8, -3.54, bz), dark_walnut, true).visible = false
 
 	var lbl_club := Label3D.new()
-	lbl_club.text = "♠ КАРТКОВИЙ КЛУБ ♣  |  ◀ ВИСТАВОЧНИЙ ЗАЛ"
+	_reg_sign(lbl_club, "sign_club")
 	lbl_club.position = Vector3(10.0, -0.68, -8.20)
 	lbl_club.pixel_size = 0.0044; lbl_club.font_size = 38; lbl_club.modulate = Color(0.95, 0.80, 0.38)
 	add_child(lbl_club)
@@ -619,12 +650,12 @@ func _build_basement_vault() -> void:
 	# --- ROOM 2: CENTRAL EXHIBITION HALL WITH TRIPODS (X:-6.8..+5.2) ---
 	_add_box_body(self, Vector3(2.8, 0.025, 13.8), Vector3(-0.8, -3.975, 0.0), runner_mat, false)
 	var lbl_ex := Label3D.new()
-	lbl_ex.text = "★ ВИСТАВОЧНИЙ ЗАЛ З ТРИНОГАМИ • 2048 • ЗУМА • ПАЗЛИ ★"
+	_reg_sign(lbl_ex, "sign_ex")
 	lbl_ex.position = Vector3(-0.8, -0.68, -8.20)
 	lbl_ex.pixel_size = 0.0044; lbl_ex.font_size = 38; lbl_ex.modulate = Color(0.98, 0.86, 0.45)
 	add_child(lbl_ex)
 	var lbl_west_w := Label3D.new()
-	lbl_west_w.text = "◀ ВИННИЙ ПОГРІБ (ПІВНІЧ)   |   ТАЄМНЕ СХОВИЩЕ (ПІВДЕНЬ) ▶"
+	_reg_sign(lbl_west_w, "sign_west_w")
 	lbl_west_w.position = Vector3(-6.45, -0.78, 0.0); lbl_west_w.rotation.y = PI * 0.5
 	lbl_west_w.pixel_size = 0.0040; lbl_west_w.font_size = 32; lbl_west_w.modulate = Color(0.94, 0.84, 0.52)
 	add_child(lbl_west_w)
@@ -650,7 +681,7 @@ func _build_basement_vault() -> void:
 
 	# --- ROOM 3: WINE CELLAR & TASTING LOUNGE (X:-19.5..-6.8, Z:-8.5..0.0) ---
 	var lbl_wine := Label3D.new()
-	lbl_wine.text = "🍷 ВИННИЙ ПОГРІБ І ТАВЕРНА 1898 🍷"
+	_reg_sign(lbl_wine, "sign_wine")
 	lbl_wine.position = Vector3(-13.0, -0.70, -8.20)
 	lbl_wine.pixel_size = 0.0044; lbl_wine.font_size = 38; lbl_wine.modulate = Color(0.96, 0.78, 0.42)
 	add_child(lbl_wine)
@@ -678,7 +709,7 @@ func _build_basement_vault() -> void:
 
 	# --- ROOM 4: SECRET TREASURE VAULT (X:-19.5..-6.8, Z:0.0..+8.5) ---
 	var lbl_v := Label3D.new()
-	lbl_v.text = "💎 ТАЄМНЕ СХОВИЩЕ БАНКУ • СЕЙФ І САПФІР 💎"
+	_reg_sign(lbl_v, "sign_vault")
 	lbl_v.position = Vector3(-13.0, -0.70, 8.20); lbl_v.rotation.y = PI
 	lbl_v.pixel_size = 0.0044; lbl_v.font_size = 38; lbl_v.modulate = Color(0.50, 0.92, 1.0)
 	add_child(lbl_v)
@@ -728,6 +759,7 @@ func _build_basement_vault() -> void:
 		qdrawer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		qvp.add_child(qdrawer)
 		qroot.add_child(qvp)
+		_board_views.append({"drawer": qdrawer, "vp": qvp})
 		var qquad := QuadMesh.new()
 		qquad.size = Vector2(1.38, 0.92)
 		var qmat := StandardMaterial3D.new()
@@ -834,7 +866,7 @@ func _build_mansard() -> void:
 
 	# Upper Mansard Staircase Sign & Side Railing along stairwell
 	var lbl_up := Label3D.new()
-	lbl_up.text = "▲ СХОДИ НА МАНСАРДУ • ОБСЕРВАТОРІЯ"
+	_reg_sign(lbl_up, "sign_up")
 	lbl_up.position = Vector3(18.55, 4.4, 5.2)
 	lbl_up.rotation.y = PI
 	lbl_up.pixel_size = 0.0045
@@ -917,7 +949,7 @@ func _build_mansard() -> void:
 	_add_box_body(self, Vector3(0.25, 0.55, 3.2), Vector3(4.92, 7.50, 0.0), leather_mat, true)
 	_add_box_body(self, Vector3(1.2, 0.48, 2.0), Vector3(1.8, 7.06, 0.0), walnut_mat, true)
 	var lbl_mansard := Label3D.new()
-	lbl_mansard.text = "★ МАНСАРДА: ГАЛЕРЕЯ ІГОР ТА ПІТОН 3D ★"
+	_reg_sign(lbl_mansard, "sign_mansard")
 	lbl_mansard.position = Vector3(-11.2, 8.88, 0.0)
 	lbl_mansard.rotation.y = PI * 0.5
 	lbl_mansard.pixel_size = 0.0052
@@ -1297,8 +1329,10 @@ func _build_all_paintings() -> void:
 		p_node.add_child(canvas_mi)
 
 		_add_box_body(p_node, Vector3(1.26, 0.22, 0.04), Vector3(0, -1.16, 0.03), bronze_mat, false)
+		var p_title := ConfigManager.t("g_" + str(spec["id"]), str(spec["title"]))
 		var lbl3d := Label3D.new()
-		lbl3d.text = str(spec["title"])
+		lbl3d.font = ConfigManager.get_ui_font()
+		lbl3d.text = p_title
 		lbl3d.position = Vector3(0, -1.16, 0.06)
 		lbl3d.pixel_size = 0.0045
 		lbl3d.font_size = 34
@@ -1347,19 +1381,19 @@ func _build_all_paintings() -> void:
 
 		paintings.append({
 			"id": str(spec["id"]),
-			"title": str(spec["title"]),
+			"title": p_title,
 			"node": p_node,
 			"collider": area,
 			"highlight_mat": highlight_mat,
 			"canvas_mat": canvas_mat,
-			"viewport": vp
+			"viewport": vp,
+			"plaque_lbl": lbl3d
 		})
 		_preview_drawer_nodes.append({"drawer": drawer, "vp": vp})
 
 
 func _build_roof_searchlights() -> void:
 	var housing_mat := _mat(Color(0.18, 0.18, 0.20), 0.35, 0.85)
-	var lens_mat := _mat(Color(1.0, 0.96, 0.80), 0.1, 0.0, Color(1.0, 0.92, 0.65), 3.0)
 	var beam_shader := load("res://shaders/searchlight_beam.gdshader") as Shader
 
 	var roof_configs := [
@@ -1395,8 +1429,9 @@ func _build_roof_searchlights() -> void:
 		var dmi := MeshInstance3D.new(); dmi.mesh = drum; dmi.material_override = housing_mat; dmi.position = Vector3(0, 0.2, 0)
 		turret.add_child(dmi)
 
+		var l_mat := _mat(Color(0.32, 0.32, 0.34), 0.12, 0.05, Color(1.0, 0.92, 0.65), 0.0)
 		var lens := CylinderMesh.new(); lens.top_radius = 0.34; lens.bottom_radius = 0.34; lens.height = 0.06
-		var lmi := MeshInstance3D.new(); lmi.mesh = lens; lmi.material_override = lens_mat; lmi.position = Vector3(0, 0.53, 0)
+		var lmi := MeshInstance3D.new(); lmi.mesh = lens; lmi.material_override = l_mat; lmi.position = Vector3(0, 0.53, 0)
 		turret.add_child(lmi)
 
 		var beam_mat := ShaderMaterial.new()
@@ -1409,6 +1444,7 @@ func _build_roof_searchlights() -> void:
 		beam.material_override = beam_mat
 		beam.position = Vector3(0, 35.4, 0)
 		beam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		beam.visible = false
 		turret.add_child(beam)
 
 		var spot := SpotLight3D.new()
@@ -1419,14 +1455,35 @@ func _build_roof_searchlights() -> void:
 		spot.spot_range = 85.0
 		spot.spot_angle = 18.0
 		spot.shadow_enabled = false
+		spot.visible = false
 		turret.add_child(spot)
 
 		_searchlights.append({
 			"turret": turret,
+			"spot": spot,
+			"beam": beam,
+			"beam_mat": beam_mat,
+			"lens_mat": l_mat,
 			"speed_x": float(cfg["speed_x"]),
 			"speed_y": float(cfg["speed_y"]),
 			"phase": float(cfg["phase"])
 		})
+
+
+func set_searchlights_active(active: bool, darkness: float = 1.0) -> void:
+	_searchlights_active = active
+	var k := clampf(darkness, 0.0, 1.0) if active else 0.0
+	for sl: Dictionary in _searchlights:
+		var spot := sl["spot"] as SpotLight3D
+		var beam := sl["beam"] as MeshInstance3D
+		var bmat := sl["beam_mat"] as ShaderMaterial
+		var lmat := sl["lens_mat"] as StandardMaterial3D
+		spot.visible = active
+		spot.light_energy = 5.5 * k
+		beam.visible = active
+		bmat.set_shader_parameter("intensity", 0.38 * k)
+		lmat.emission_energy_multiplier = 3.2 * k if active else 0.0
+		lmat.albedo_color = Color(1.0, 0.96, 0.80) if active else Color(0.32, 0.32, 0.34)
 
 
 func _build_interior_reflection_probe() -> void:
@@ -1486,7 +1543,7 @@ func trigger_slot(idx: int) -> String:
 		return ""
 	var st: Dictionary = _slot_states[idx]
 	if bool(st["spinning"]):
-		return "⏳ Барабани ще крутяться!"
+		return ConfigManager.t("slot_busy")
 	_slot_pulls[idx] = 1.0
 	AudioSfx.play_slot_spin()
 
@@ -1497,36 +1554,36 @@ func trigger_slot(idx: int) -> String:
 	if roll == 0:
 		targets = [0, 0, 0]
 		win_chips = 500
-		win_msg = "★ ДЖЕКПОТ 7-7-7! (+500 фішок!) ★"
+		win_msg = ConfigManager.t("slot_777")
 	elif roll <= 2:
 		targets = [3, 3, 3]
 		win_chips = 250
-		win_msg = "💎 ДІАМАНТИ x3! (+250 фішок!)"
+		win_msg = ConfigManager.t("slot_diamond")
 	elif roll <= 5:
 		targets = [1, 1, 1]
 		win_chips = 120
-		win_msg = "🍒 Вишні x3! (+120 фішок)"
+		win_msg = ConfigManager.t("slot_cherry")
 	elif roll <= 9:
 		targets = [2, 2, 2]
 		win_chips = 80
-		win_msg = "🔔 Дзвіночки x3! (+80 фішок)"
+		win_msg = ConfigManager.t("slot_bell")
 	elif roll <= 12:
 		targets = [4, 4, 4]
 		win_chips = 60
-		win_msg = "⭐ Зірки x3! (+60 фішок)"
+		win_msg = ConfigManager.t("slot_star")
 	elif roll <= 15:
 		var m := randi() % 4 + 1
 		var other := (m + 2) % 6
 		targets = [m, m, other]
 		win_chips = 25
-		win_msg = "✨ Пара символів! (+25 фішок)"
+		win_msg = ConfigManager.t("slot_pair")
 	else:
 		var s0 := randi() % 6
 		var s1 := (s0 + 1 + randi() % 2) % 6
 		var s2 := (s1 + 1 + randi() % 2) % 6
 		targets = [s0, s1, s2]
 		win_chips = 0
-		win_msg = "🍋 Повз! Спробуйте ще раз!"
+		win_msg = ConfigManager.t("slot_lose")
 
 	var cur_scrolls: Array = st["scroll"]
 	var start_s: Array = []
@@ -1551,7 +1608,7 @@ func trigger_slot(idx: int) -> String:
 	drawer.win_flash = 0.0
 	var vp: SubViewport = st["vp"]
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	return "🎰 Тягнемо важіль — барабани пішли!"
+	return ConfigManager.t("slot_pull")
 
 
 func is_slot_spinning(idx: int) -> bool:
@@ -1619,9 +1676,9 @@ func start_roulette_spin() -> int:
 func trigger_roulette() -> String:
 	var n := start_roulette_spin()
 	if n < 0:
-		return "🎡 Кулька вже біжить по колу!"
-	var col := "🟢 0 ЗЕРО" if n == 0 else (("🔴 Червоне %d" if (n in RED_NUMS) else "⚫ Чорне %d") % n)
-	return "🎡 Рулетка крутиться... випало %s!" % col
+		return ConfigManager.t("r_busy_toast")
+	var col := ConfigManager.t("r_zero") if n == 0 else ((ConfigManager.t("r_red") if (n in RED_NUMS) else ConfigManager.t("r_black")) % n)
+	return ConfigManager.t("r_spin_toast") % col
 
 
 func toggle_disco() -> bool:
@@ -1631,6 +1688,18 @@ func toggle_disco() -> bool:
 			if dl: dl.light_color = Color(1.0, 0.88, 0.70)
 	AudioSfx.play_race_lap()
 	return _disco_mode
+
+
+func is_disco_enabled() -> bool:
+	return _disco_mode
+
+
+func set_disco_enabled(enabled: bool) -> void:
+	if _disco_mode != enabled:
+		_disco_mode = enabled
+		if not _disco_mode:
+			for dl: OmniLight3D in _disco_lights:
+				if dl: dl.light_color = Color(1.0, 0.88, 0.70)
 
 
 func _process(delta: float) -> void:
@@ -1725,12 +1794,13 @@ func _process(delta: float) -> void:
 			if dl:
 				dl.light_color = Color.from_hsv(fmod(_preview_time * 0.65 + float(di) * 0.35, 1.0), 0.78, 1.0)
 
-	for sl in _searchlights:
-		var t_node: Node3D = sl["turret"]
-		var ph := float(sl["phase"])
-		t_node.rotation.y = sin(_preview_time * float(sl["speed_y"]) + ph) * 1.35
-		t_node.rotation.x = 0.24 + cos(_preview_time * float(sl["speed_x"]) + ph) * 0.28
-		t_node.rotation.z = sin(_preview_time * float(sl["speed_x"]) * 0.8 + ph) * 0.24
+	if _searchlights_active:
+		for sl in _searchlights:
+			var t_node: Node3D = sl["turret"]
+			var ph := float(sl["phase"])
+			t_node.rotation.y = sin(_preview_time * float(sl["speed_y"]) + ph) * 1.35
+			t_node.rotation.x = 0.24 + cos(_preview_time * float(sl["speed_x"]) + ph) * 0.28
+			t_node.rotation.z = sin(_preview_time * float(sl["speed_x"]) * 0.8 + ph) * 0.24
 
 	_frame_counter += 1
 	var cam := get_viewport().get_camera_3d()
@@ -1751,7 +1821,7 @@ class PaintingCanvasDrawer extends Control:
 
 	func _draw() -> void:
 		var r := Rect2(Vector2.ZERO, size)
-		var f := ThemeDB.fallback_font
+		var f := ConfigManager.get_ui_font()
 		match game_id:
 			"python3d":
 				draw_rect(r, Color(0.05, 0.12, 0.07))
@@ -1812,7 +1882,7 @@ class PaintingCanvasDrawer extends Control:
 				draw_line(Vector2(96, 34), Vector2(74, 54), Color(0.24, 0.78, 0.98), 3.0)
 			"balda":
 				draw_rect(r, Color(0.08, 0.10, 0.14))
-				var w := "КАЗКА"
+				var w := "КАЗКА" if ConfigManager.get_current_language() == "uk" else "WORDS"
 				for ci in range(5):
 					draw_rect(Rect2(44 + ci * 34, 62, 30, 34), Color(0.18, 0.34, 0.54))
 					draw_string(f, Vector2(44 + ci * 34, 86), w[ci], HORIZONTAL_ALIGNMENT_CENTER, 30, 18, Color.WHITE)
@@ -2042,6 +2112,7 @@ func _build_games_map_stand() -> void:
 	drawer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	vp.add_child(drawer)
 	board.add_child(vp)
+	_board_views.append({"drawer": drawer, "vp": vp})
 
 	var quad := QuadMesh.new()
 	quad.size = Vector2(1.40, 0.96)
@@ -2077,85 +2148,99 @@ func _build_games_map_stand() -> void:
 	stand.add_child(col)
 
 
+func _gnames(ids: Array) -> String:
+	var out: Array[String] = []
+	for gid in ids:
+		out.append(ConfigManager.t("g_" + str(gid), str(gid)))
+	return ", ".join(out)
+
+
 func get_games_map_text() -> String:
 	return (
-		"ВСЬОГО У КАЗИНО: 34 УНІКАЛЬНІ ГРИ (13 + 11 + 10)  |  Стенд зліва біля південного виходу\n\n"
-		+ "1 ПОВЕРХ — ГОЛОВНИЙ ЗАЛ (13 картин):\n"
-		+ "  • Центр: Маріо, Тетріс, Змійка 3D, Бомбермен, Арканоїд, Космічна Аркада, Танчики\n"
-		+ "  • Західний зал: Соккер, Шахи, Шашки, Уголки, Морський бій\n"
-		+ "  • Східний зал: Пак-Лабіринт\n"
-		+ "  • Центр залу: 3D Європейська Рулетка (ставка фішками) | Південь: Однорукі бандити\n\n"
-		+ "ПІДВАЛ — ВХІД ЧЕРЕЗ СХІДНИЙ КОРИДОР (11 ігор):\n"
-		+ "  • Картковий ВІП-клуб: Дурак, Блекджек, Покер\n"
-		+ "  • Великий виставковий зал: 2048, Зума, Пазли, Самоцвіти, Сапер, Косинка\n"
-		+ "  • Винний льох та Сховище: Сокіл Долини, Судоку\n\n"
-		+ "МАНСАРДА — СХОДИ НА СХОДІ НАГОРУ (10 мольбертів):\n"
-		+ "  • Пітон, Гекса, Сокобан, П'ятнашки, Хрестики-Нулики,\n"
-		+ "    Теніс (Pong), Меморі, Кодовий замок, Бики та Корови, Балда\n\n"
-		+ "ДВІР НА ПІВДЕНЬ ЗА ВИХОДОМ:\n"
-		+ "  • Чортове колесо на пагорбі зліва (можна залізти, повний оберт за 1 хв)\n"
-		+ "  • Перегоновий спорткар (трек з 4 петлями і 4 AI-суперниками), Озера з рибками, Бінокль [E], Вівтар погоди"
+		ConfigManager.t("map_modal_hdr") + "\n\n"
+		+ ConfigManager.t("map_z1") + ":\n"
+		+ "  " + ConfigManager.t("map_1f_main") + ": " + _gnames(["mario", "pacman", "bomberman", "arcade", "tanks", "arkanoid", "pong"]) + "\n"
+		+ "  " + ConfigManager.t("map_1f_west") + ": " + _gnames(["chess", "checkers", "corners", "tictactoe", "battleship"]) + "\n"
+		+ "  " + ConfigManager.t("map_1f_east") + ": " + _gnames(["soccer"]) + "\n"
+		+ "  " + ConfigManager.t("map_1f_center") + "\n\n"
+		+ ConfigManager.t("map_z2") + ":\n"
+		+ "  " + ConfigManager.t("map_b_vip") + ": " + _gnames(["durak", "blackjack", "poker", "solitaire"]) + "\n"
+		+ "  " + ConfigManager.t("map_b_ex") + ": " + _gnames(["tetris", "2048", "hexa", "match3", "zuma", "puzzle"]) + "\n"
+		+ "  " + ConfigManager.t("map_b_cellar") + ": " + _gnames(["sudoku", "codelock"]) + "\n\n"
+		+ ConfigManager.t("map_z3") + ":\n"
+		+ "  " + ConfigManager.t("map_attic_line") + ": " + _gnames(["snake", "python3d", "flappy", "sokoban", "fifteen", "minesweeper", "memory", "bullscows", "balda"]) + "\n\n"
+		+ ConfigManager.t("map_z4") + ":\n"
+		+ "  " + ConfigManager.t("map_nav_ferris") + "\n"
+		+ "  " + ConfigManager.t("map_nav_south") + "\n"
+		+ "  " + ConfigManager.t("map_nav_car") + "\n"
+		+ "  " + ConfigManager.t("map_nav_bino") + "\n"
+		+ "  " + ConfigManager.t("map_nav_quests")
 	)
 
 
 class GamesMapDrawer extends Control:
+	static func _gn(ids: Array) -> String:
+		var out: Array[String] = []
+		for gid in ids:
+			out.append(ConfigManager.t("g_" + str(gid), str(gid)))
+		return ", ".join(out)
+
 	func _draw() -> void:
-		var f := ThemeDB.fallback_font
+		var f := ConfigManager.get_ui_font()
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0.05, 0.08, 0.09))
 		draw_rect(Rect2(8, 8, size.x - 16, size.y - 16), Color(0.84, 0.68, 0.28), false, 3.0)
 		draw_rect(Rect2(12, 12, size.x - 24, 54), Color(0.11, 0.16, 0.14))
-		draw_string(f, Vector2(20, 40), "КАРТА ІГОР ТА ЗАЛІВ КАЗИНО (34 ГРИ)", HORIZONTAL_ALIGNMENT_CENTER, size.x - 40, 23, Color(1.0, 0.88, 0.42))
-		draw_string(f, Vector2(20, 60), "Вихід на південь (+Z) | Цей стенд знаходиться зліва перед виходом | Натисніть [E] щоб збільшити", HORIZONTAL_ALIGNMENT_CENTER, size.x - 40, 12, Color(0.76, 0.86, 0.80))
+		draw_string(f, Vector2(20, 40), ConfigManager.t("map_board_title"), HORIZONTAL_ALIGNMENT_CENTER, size.x - 40, 22, Color(1.0, 0.88, 0.42))
+		draw_string(f, Vector2(20, 60), ConfigManager.t("map_board_sub"), HORIZONTAL_ALIGNMENT_CENTER, size.x - 40, 12, Color(0.76, 0.86, 0.80))
 
 		var zones := [
 			{
 				"rect": Rect2(22, 80, 398, 232),
 				"col": Color(0.95, 0.78, 0.30),
-				"title": "1 ПОВЕРХ • ГОЛОВНИЙ ЗАЛ (13 ігор)",
+				"title": ConfigManager.t("map_z1"),
 				"lines": [
-					"• Північ/стіни: Маріо, Тетріс, Змійка 3D",
-					"  Бомбермен, Арканоїд, Аркада, Танчики",
-					"• Західний зал: Соккер, Шахи, Шашки,",
-					"  Уголки, Морський бій",
-					"• Східний зал: Пак-Лабіринт",
-					"• Центр: 3D Рулетка | Південь: Слоти 777"
+					ConfigManager.t("map_1f_main") + ": " + _gn(["mario", "pacman", "bomberman"]),
+					"  " + _gn(["arcade", "tanks", "arkanoid", "pong"]),
+					ConfigManager.t("map_1f_west") + ": " + _gn(["chess", "checkers", "corners"]) + ",",
+					"  " + _gn(["tictactoe", "battleship"]),
+					ConfigManager.t("map_1f_east") + ": " + _gn(["soccer"]),
+					ConfigManager.t("map_1f_center")
 				]
 			},
 			{
 				"rect": Rect2(440, 80, 398, 232),
 				"col": Color(0.28, 0.86, 0.56),
-				"title": "ПІДВАЛ • СХІДНІ СХОДИ ВНИЗ (11 ігор)",
+				"title": ConfigManager.t("map_z2"),
 				"lines": [
-					"• ВІП Картковий клуб:",
-					"  Дурак, Блекджек, Покер",
-					"• Велика галерея мольбертів:",
-					"  2048, Зума, Пазли, Самоцвіти,",
-					"  Сапер, Косинка",
-					"• Винний льох / Сейф: Сокіл Долини, Судоку"
+					ConfigManager.t("map_b_vip") + ":",
+					"  " + _gn(["durak", "blackjack", "poker", "solitaire"]),
+					ConfigManager.t("map_b_ex") + ":",
+					"  " + _gn(["tetris", "2048", "hexa"]) + ",",
+					"  " + _gn(["match3", "zuma", "puzzle"]),
+					ConfigManager.t("map_b_cellar") + ": " + _gn(["sudoku", "codelock"])
 				]
 			},
 			{
 				"rect": Rect2(22, 328, 398, 244),
 				"col": Color(0.32, 0.80, 0.98),
-				"title": "МАНСАРДА • СХОДИ НАГОРУ (10 ігор)",
+				"title": ConfigManager.t("map_z3"),
 				"lines": [
-					"• Галерея 10 мольбертів:",
-					"  Пітон, Гекса, Сокобан, П'ятнашки,",
-					"  Хрестики-Нулики, Теніс (Pong),",
-					"  Меморі, Кодовий замок,",
-					"  Бики та Корови, Балда"
+					ConfigManager.t("map_attic_line") + ":",
+					"  " + _gn(["snake", "python3d", "flappy"]) + ",",
+					"  " + _gn(["sokoban", "fifteen", "minesweeper"]) + ",",
+					"  " + _gn(["memory", "bullscows", "balda"])
 				]
 			},
 			{
 				"rect": Rect2(440, 328, 398, 244),
 				"col": Color(0.98, 0.54, 0.32),
-				"title": "НАВІГАЦІЯ ТА ДВІР НАЗОВНІ",
+				"title": ConfigManager.t("map_z4"),
 				"lines": [
-					"• Зліва на пагорбі -> Чортове колесо (вхід, 1хв)",
-					"• Двері півдня -> Озера з рибками, ліс",
-					"• Справа надворі -> Болід та 4-петльовий трек",
-					"• Біля озера/мансарди -> Бінокль, Вівтар погоди",
-					"• Журнал квестів та артефактів -> [Q]"
+					ConfigManager.t("map_nav_ferris"),
+					ConfigManager.t("map_nav_south"),
+					ConfigManager.t("map_nav_car"),
+					ConfigManager.t("map_nav_bino"),
+					ConfigManager.t("map_nav_quests")
 				]
 			}
 		]
@@ -2166,15 +2251,15 @@ class GamesMapDrawer extends Control:
 			draw_rect(zr, Color(0.08, 0.11, 0.13))
 			draw_rect(zr, zc, false, 2.0)
 			draw_rect(Rect2(zr.position, Vector2(zr.size.x, 30)), Color(zc.r * 0.25, zc.g * 0.25, zc.b * 0.25))
-			draw_string(f, zr.position + Vector2(10, 21), str(z["title"]), HORIZONTAL_ALIGNMENT_LEFT, zr.size.x - 16, 15, zc)
+			draw_string(f, zr.position + Vector2(10, 21), str(z["title"]), HORIZONTAL_ALIGNMENT_LEFT, zr.size.x - 16, 14, zc)
 			var ly := zr.position.y + 52.0
 			for ln in (z["lines"] as Array):
-				draw_string(f, Vector2(zr.position.x + 12.0, ly), str(ln), HORIZONTAL_ALIGNMENT_LEFT, zr.size.x - 20.0, 14, Color(0.92, 0.94, 0.90))
+				draw_string(f, Vector2(zr.position.x + 12.0, ly), str(ln), HORIZONTAL_ALIGNMENT_LEFT, zr.size.x - 20.0, 13, Color(0.92, 0.94, 0.90))
 				ly += 25.0
 
 		draw_circle(Vector2(804, 540), 10.0, Color(0.96, 0.24, 0.22))
 		draw_circle(Vector2(804, 540), 14.0, Color(1.0, 0.85, 0.30), false, 2.0)
-		draw_string(f, Vector2(692, 545), "ВИ ТУТ", HORIZONTAL_ALIGNMENT_LEFT, 100, 14, Color(1.0, 0.86, 0.38))
+		draw_string(f, Vector2(672, 545), ConfigManager.t("map_you_here"), HORIZONTAL_ALIGNMENT_RIGHT, 114, 14, Color(1.0, 0.86, 0.38))
 
 
 class SlotReelDrawer extends Control:
@@ -2184,7 +2269,7 @@ class SlotReelDrawer extends Control:
 
 	func _draw() -> void:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0.07, 0.05, 0.05))
-		var f := ThemeDB.fallback_font
+		var f := ConfigManager.get_ui_font()
 		var reel_w := 88.0
 		var gap := 8.0
 		var start_x := 10.0
@@ -2268,6 +2353,7 @@ class RouletteWheelDrawer extends Control:
 		draw_circle(c, outer_r, Color(0.46, 0.34, 0.14))
 		var half_w := PI / 37.0
 		var f := ThemeDB.fallback_font
+		draw_set_transform(Vector2.ZERO, 0.0)
 		for p_idx in range(37):
 			var pa := float(p_idx) * TAU / 37.0
 			var n := int(ORDER[p_idx])
@@ -2279,6 +2365,9 @@ class RouletteWheelDrawer extends Control:
 			pts.append(c + Vector2(cos(pa + half_w), sin(pa + half_w)) * inner_r)
 			draw_colored_polygon(pts, col)
 			draw_line(c + Vector2(cos(pa - half_w), sin(pa - half_w)) * inner_r, c + Vector2(cos(pa - half_w), sin(pa - half_w)) * rim_r, Color(0.86, 0.70, 0.28), 1.8)
+		for p_idx in range(37):
+			var pa := float(p_idx) * TAU / 37.0
+			var n := int(ORDER[p_idx])
 			var num_p := c + Vector2(cos(pa), sin(pa)) * (rim_r * 0.87)
 			draw_set_transform(num_p, pa + PI * 0.5)
 			draw_string(f, Vector2(-14, 5), str(n), HORIZONTAL_ALIGNMENT_CENTER, 28, 14, Color.WHITE)
@@ -2291,28 +2380,29 @@ class RouletteWheelDrawer extends Control:
 
 class QuestBoardDrawer extends Control:
 	func _draw() -> void:
-		var f := ThemeDB.fallback_font
+		var f := ConfigManager.get_ui_font()
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0.05, 0.07, 0.10))
 		draw_rect(Rect2(8, 8, size.x - 16, size.y - 16), Color(0.86, 0.70, 0.28), false, 3.0)
 		draw_rect(Rect2(12, 12, size.x - 24, 52), Color(0.10, 0.15, 0.20))
-		draw_string(f, Vector2(20, 44), "ДОШКА КВЕСТІВ КАЗИНО (6 ЗАВДАНЬ)", HORIZONTAL_ALIGNMENT_CENTER, size.x - 40, 22, Color(1.0, 0.88, 0.40))
+		draw_string(f, Vector2(20, 44), ConfigManager.t("qb_title"), HORIZONTAL_ALIGNMENT_CENTER, size.x - 40, 22, Color(1.0, 0.88, 0.40))
 
 		var rows := [
-			["1. Таємниці Підземелля", "Відвідайте залу, льох та сховище", "+150"],
-			["2. Мисливець за Реліквіями", "Кубок, Винна Амфора і Сапфір", "+250"],
-			["3. Поціновувач Новинок", "Зіграйте у 2048, Зуму та Пазли", "+200"],
-			["4. Сейф і ВІП-Диско", "Сейф у сховищі + ВІП-диско", "+150"],
-			["5. Король Гірської Траси", "Мертва петля + Стрибок", "+300"],
-			["6. Спостерігач Долини", "Бінокль + Погода + Гриб-батут", "+200"]
+			["1. " + ConfigManager.t("q_explorer_basement_t"), ConfigManager.t("q_explorer_basement_d"), "+150"],
+			["2. " + ConfigManager.t("q_relic_hunter_t"), ConfigManager.t("q_relic_hunter_d"), "+250"],
+			["3. " + ConfigManager.t("q_arcade_newcomer_t"), ConfigManager.t("q_arcade_newcomer_d"), "+200"],
+			["4. " + ConfigManager.t("q_vault_heist_t"), ConfigManager.t("q_vault_heist_d"), "+150"],
+			["5. " + ConfigManager.t("q_stunt_driver_t"), ConfigManager.t("q_stunt_driver_d"), "+300"],
+			["6. " + ConfigManager.t("q_valley_master_t"), ConfigManager.t("q_valley_master_d"), "+200"]
 		]
 		var y := 86.0
+		var chip_unit := ConfigManager.t("q_chips_unit")
 		for row in rows:
 			draw_rect(Rect2(24, y - 22, size.x - 48, 52), Color(0.08, 0.11, 0.15))
 			draw_rect(Rect2(24, y - 22, size.x - 48, 52), Color(0.28, 0.34, 0.42), false, 1.5)
-			draw_string(f, Vector2(36, y + 2), str(row[0]), HORIZONTAL_ALIGNMENT_LEFT, 360, 16, Color(0.98, 0.88, 0.46))
-			draw_string(f, Vector2(36, y + 22), str(row[1]), HORIZONTAL_ALIGNMENT_LEFT, 540, 14, Color(0.84, 0.88, 0.90))
-			draw_string(f, Vector2(size.x - 140, y + 12), "%s ф." % str(row[2]), HORIZONTAL_ALIGNMENT_RIGHT, 100, 16, Color(0.32, 0.92, 0.56))
+			draw_string(f, Vector2(36, y + 2), str(row[0]), HORIZONTAL_ALIGNMENT_LEFT, 480, 16, Color(0.98, 0.88, 0.46))
+			draw_string(f, Vector2(36, y + 22), str(row[1]), HORIZONTAL_ALIGNMENT_LEFT, 530, 13, Color(0.84, 0.88, 0.90))
+			draw_string(f, Vector2(size.x - 165, y + 12), "%s %s" % [str(row[2]), chip_unit], HORIZONTAL_ALIGNMENT_RIGHT, 125, 15, Color(0.32, 0.92, 0.56))
 			y += 58.0
 
 		draw_rect(Rect2(12, size.y - 46, size.x - 24, 34), Color(0.11, 0.16, 0.14))
-		draw_string(f, Vector2(20, size.y - 23), "Натисніть [E] на стенді або [Q] будь-де — відкрити Журнал квестів", HORIZONTAL_ALIGNMENT_CENTER, size.x - 40, 14, Color(0.80, 0.94, 0.82))
+		draw_string(f, Vector2(20, size.y - 23), ConfigManager.t("qb_hint"), HORIZONTAL_ALIGNMENT_CENTER, size.x - 40, 14, Color(0.80, 0.94, 0.82))

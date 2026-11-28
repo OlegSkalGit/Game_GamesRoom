@@ -12,11 +12,11 @@ var _keys_held: Dictionary = {}
 
 
 func get_game_title() -> String:
-	return "Гра"
+	return ConfigManager.t("menu_play", "Game")
 
 
 func get_controls_hint() -> String:
-	return "Стрілки / WASD — рух | Пробіл — дія | R — рестарт | Esc — вийти"
+	return ConfigManager.t("mh_hint_default", "Arrows / WASD — move | Space — action | R — restart | Esc — exit")
 
 
 func reset_game() -> void:
@@ -176,13 +176,14 @@ static func is_action_key(phys: int) -> bool:
 	return phys == KEY_SPACE or phys == KEY_ENTER
 
 
-func draw_game_over_banner(msg: String = "ГРУ ЗАВЕРШЕНО — [R] Почати знову") -> void:
+func draw_game_over_banner(msg: String = "") -> void:
 	if not game_over:
 		return
+	var banner := ConfigManager.t("mh_game_over", "GAME OVER — [R] Restart") if msg == "" else msg
 	draw_rect(Rect2(90, 155, 460, 90), Color(0.05, 0.05, 0.08, 0.86))
 	draw_rect(Rect2(90, 155, 460, 90), Color(0.95, 0.78, 0.3), false, 2.5)
-	var font := ThemeDB.fallback_font
-	draw_string(font, Vector2(110, 206), msg, HORIZONTAL_ALIGNMENT_CENTER, 420, 20, Color(1.0, 0.92, 0.72))
+	var font := ConfigManager.get_ui_font()
+	draw_string(font, Vector2(110, 206), banner, HORIZONTAL_ALIGNMENT_CENTER, 420, 20, Color(1.0, 0.92, 0.72))
 
 
 # Used on the 3D wall paintings in the Casino Room to show animated iconic artwork!

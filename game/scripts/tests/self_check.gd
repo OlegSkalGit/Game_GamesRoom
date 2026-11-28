@@ -33,16 +33,30 @@ func _check(cond: bool, msg: String) -> bool:
 func _run_checks() -> void:
 	print("=== SELF CHECK START ===")
 
-	# 1. ConfigManager & game/config.cfg root check
+	# 1. ConfigManager & game/config.cfg root check (plus preserving external [launcher] section)
 	var cfg_path := ConfigManager.get_config_path()
 	var prev_cfg_gfx: Dictionary = ConfigManager.graphics.duplicate()
+	var prev_cfg_display: Dictionary = ConfigManager.display.duplicate()
+	var prev_lang: String = ConfigManager.get_current_language()
 	if not _check(cfg_path.ends_with("game/config.cfg") or cfg_path.ends_with("game\\config.cfg"), "Config must live in game/ root: " + cfg_path): return
+	var pre_cfg := ConfigFile.new()
+	var had_launcher_mode := (pre_cfg.load(cfg_path) == OK and pre_cfg.has_section_key("launcher", "renderer_mode"))
+	var prev_launcher_mode = pre_cfg.get_value("launcher", "renderer_mode", 1) if had_launcher_mode else null
+	pre_cfg.set_value("launcher", "renderer_mode", 2)
+	pre_cfg.save(cfg_path)
 	for preset_idx in range(ConfigManager.PRESET_NAMES.size()):
 		ConfigManager.apply_preset(preset_idx)
 		if not _check(int(ConfigManager.graphics["preset"]) == preset_idx, "Preset mismatch"): return
 	ConfigManager.apply_preset(3)
 	if not _check(int(ConfigManager.graphics["antialiasing"]) >= 3, "High preset must use sharp MSAA (>=3), not blurry TAA"): return
 	if not _check(FileAccess.file_exists(cfg_path), "config.cfg was not saved to game/ root"): return
+	var post_cfg := ConfigFile.new()
+	if not _check(post_cfg.load(cfg_path) == OK and int(post_cfg.get_value("launcher", "renderer_mode", -1)) == 2, "save_config overwrote [launcher] section!"): return
+	if prev_launcher_mode != null:
+		post_cfg.set_value("launcher", "renderer_mode", prev_launcher_mode)
+	else:
+		post_cfg.erase_section("launcher")
+	post_cfg.save(cfg_path)
 	print("[PASS] ConfigManager presets & game/config.cfg")
 
 	# 2. Load Main scene cleanly
@@ -103,6 +117,19 @@ func _run_checks() -> void:
 		seen_ids[pid] = true
 	for gid_key: String in MinigameHost.GAME_SCRIPTS.keys():
 		if not _check(not world.casino_room.get_painting_by_id(gid_key).is_empty(), "Missing painting/tripod for game: " + gid_key): return
+	if not _check(ConfigManager.t("sign_marquee") == "★ HOUSE OF GAMES ★", "Entrance sign default mismatch: " + ConfigManager.t("sign_marquee")): return
+	for bid: String in ["chess", "checkers", "corners", "tictactoe", "battleship"]:
+		var bp: Vector3 = world.casino_room.get_painting_by_id(bid)["node"].position
+		if not _check(bp.x < -9.0 and absf(bp.y - 2.75) < 0.5, "Board game %s should be in West Wing: %s" % [bid, bp]): return
+	for cid: String in ["durak", "blackjack", "poker", "solitaire"]:
+		var cp_p: Vector3 = world.casino_room.get_painting_by_id(cid)["node"].position
+		if not _check(cp_p.x > 5.0 and cp_p.y < 0.0, "Card game %s should be in Card Club: %s" % [cid, cp_p]): return
+	for pid: String in ["tetris", "2048", "hexa", "match3", "zuma", "puzzle"]:
+		var pp: Vector3 = world.casino_room.get_painting_by_id(pid)["node"].position
+		if not _check(pp.x >= -5.0 and pp.x <= 5.0 and pp.y < 0.0, "Puzzle game %s should be in Basement Puzzles Hall: %s" % [pid, pp]): return
+	var sn_p: Vector3 = world.casino_room.get_painting_by_id("snake")["node"].position
+	var py_p: Vector3 = world.casino_room.get_painting_by_id("python3d")["node"].position
+	if not _check(sn_p.y > 6.5 and py_p.y > 6.5 and absf(sn_p.x - py_p.x) < 1.0, "Snake 3D and Python 3D should be paired in Mansard"): return
 	if not _check(world.casino_room.get_node_or_null("StairRampCollider") != null, "Basement stair ramp missing"): return
 	if not _check(world.casino_room.get_node_or_null("MansardStairRampCollider") != null, "Mansard stair ramp missing"): return
 	for i_sl in range(3):
@@ -143,14 +170,14 @@ func _run_checks() -> void:
 	await get_tree().physics_frame
 	if not _check(player._targeted_painting_id == "", "Exterior wall failed to block painting prompt, got '%s'" % player._targeted_painting_id): return
 
-	# Aim near North-Center painting (tetris at z=-8.68) and press physical E WITH Shift held
+	# Aim near North-Center painting (pacman at z=-8.68) and press physical E WITH Shift held
 	player.global_position = Vector3(0.0, 6.12, -6.4)
 	player._yaw = 0.0
 	player._pitch = 0.0
 	player.get_camera().rotation = Vector3.ZERO
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	if not _check(player._targeted_painting_id == "tetris", "Expected target 'tetris', got '%s'" % player._targeted_painting_id): return
+	if not _check(player._targeted_painting_id == "pacman", "Expected target 'pacman', got '%s'" % player._targeted_painting_id): return
 
 	var e_shift := InputEventKey.new()
 	e_shift.pressed = true
@@ -159,7 +186,7 @@ func _run_checks() -> void:
 	e_shift.keycode = KEY_U
 	player._input(e_shift)
 	await get_tree().create_timer(1.0).timeout
-	if not _check(host.is_active() and host.get_active_game().get_game_title() == "Тетріс", "Painting dive did not open Тетріс"): return
+	if not _check(host.is_active() and host.get_active_game().get_game_title() == "Пак-Лабіринт", "Painting dive did not open Пак-Лабіринт"): return
 
 	host.exit_requested.emit()
 	await get_tree().create_timer(0.9).timeout
@@ -242,6 +269,8 @@ func _run_checks() -> void:
 	if not _check(road_pbr.normal_enabled and road_pbr.roughness_texture != null, "Track asphalt normal/roughness maps missing"): return
 
 	var rt = world.race_track
+	var barrier_mi := rt.get_node_or_null("RaceTrackBarrierMesh") as MeshInstance3D
+	if not _check(barrier_mi != null and rt.get_node_or_null("_rail_mm") == null, "Monolithic track barrier mesh missing"): return
 	var max_rx := 0.0
 	var max_rz := 0.0
 	var min_rad := 999.0
@@ -267,8 +296,24 @@ func _run_checks() -> void:
 		prev_in_loop = in_lp
 	if not _check(max_rx >= 220.0 and max_rz >= 220.0, "Track must hug valley edge, got max_x=%.1f max_z=%.1f" % [max_rx, max_rz]): return
 	if not _check(loop_cnt >= 4, "Expected >= 4 vertical loops, got %d" % loop_cnt): return
-	if not _check((max_rad - min_rad) >= 120.0 and (max_y - min_y) >= 40.0, "Expected multi-coil spiral elevation variation"): return
+	if not _check((max_rad - min_rad) >= 120.0 and (max_y - min_y) >= 50.0 and max_y >= 60.0, "Expected double spirals + steep hills (y: %.1f..%.1f)" % [min_y, max_y]): return
 	if not _check(max_bank >= 20.0, "Expected banked turns proportional to curvature"): return
+	var rt_n: int = rt.frames.size()
+	for p_info in rt._pillar_positions:
+		var pxz: Vector2 = p_info["xz"]
+		var top_y := float(p_info["top_y"])
+		var bot_y := float(p_info["bot_y"])
+		var own_idx := int(p_info["idx"])
+		var is_out := bool(p_info["outrigger"])
+		for j: int in range(rt_n):
+			var d_idx := mini(abs(j - own_idx), rt_n - abs(j - own_idx))
+			if not is_out and d_idx <= 4:
+				continue
+			var rf: Dictionary = rt.frames[j]
+			var rfp: Vector3 = rf["pos"]
+			var d_xz := Vector2(pxz.x - rfp.x, pxz.y - rfp.z).length()
+			if d_xz < float(rf["width"]) * 0.5 + 1.2:
+				if not _check(rfp.y >= top_y - 0.8 or rfp.y < bot_y - 1.0, "Pillar at %s (idx=%d) intersected track frame %d at %s" % [pxz, own_idx, j, rfp]): return
 
 	# Verify 3-2-1 Countdown, Simultaneous Launch, Slow Loop Entry & 3-Lap Completion
 	main._start_race()
@@ -282,6 +327,14 @@ func _run_checks() -> void:
 		rt._process(1.0 / 60.0)
 		car._physics_process(1.0 / 60.0)
 	if not _check(car._phase == 1, "Race did not transition to RACING after 3-2-1 countdown"): return
+	# Verify mouse camera look orbits freely WITHOUT changing car steering or heading
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	var look_ev := InputEventMouseMotion.new()
+	look_ev.relative = Vector2(220.0, -50.0)
+	car._input(look_ev)
+	car._physics_process(1.0 / 60.0)
+	if not _check(absf(car._cam_yaw_offset) > 0.35 and absf(car._cam_pitch_offset) > 0.05, "Mouse camera look failed to rotate car camera"): return
+	if not _check(absf(car._rel_yaw) < 0.001 and absf(car._steer_input) < 0.001, "Mouse look must NEVER change car steering direction!"): return
 	for rv in rt.rivals:
 		if not _check(float(rv["cur_spd"]) > 5.0, "AI rival did not launch simultaneously on GO"): return
 	rt.player_progress_dist = 75.0
@@ -350,7 +403,7 @@ func _run_checks() -> void:
 	var qb0 := world.casino_room.get_node_or_null("QuestBoardStand_0") as Node3D
 	if not _check(qb0 != null and absf(qb0.rotation.y - (PI - 0.36)) < 0.05, "Lobby QuestBoard must face North-East into Casino Hall"): return
 	main._toggle_quest_journal()
-	if not _check(main._quest_journal_panel.visible and main._quest_journal_lbl.text.contains("Підземелля"), "Quest journal modal failed to open with quests"): return
+	if not _check(main._quest_journal_panel.visible and main._quest_journal_lbl.text.contains(ConfigManager.t("q_explorer_basement_t")), "Quest journal modal failed to open with quests"): return
 	main._toggle_quest_journal()
 	main._toggle_games_map()
 	if not _check(main._games_map_panel.visible and main._games_map_lbl.text.contains("34"), "Games map modal toggle/text failed"): return
@@ -387,7 +440,7 @@ func _run_checks() -> void:
 	var key_spin_cnt := [0]
 	var ks_cb := func(_b: Dictionary): key_spin_cnt[0] = int(key_spin_cnt[0]) + 1
 	main._roulette_ui.spin_requested.connect(ks_cb)
-	if not _check(main._roulette_ui._spin_btn.text.contains("ЗАПУСТИТИ") and main._roulette_ui.handle_key(KEY_ENTER) and int(key_spin_cnt[0]) == 1, "Roulette launch button / KEY_ENTER trigger failed"): return
+	if not _check(main._roulette_ui._spin_btn.text.contains("SPIN") and main._roulette_ui.handle_key(KEY_ENTER) and int(key_spin_cnt[0]) == 1, "Roulette launch button / KEY_ENTER trigger failed"): return
 	main._roulette_ui.close_overlay()
 	print("[PASS] Exit-Left 34-Game Map, 3-Reel Animated Slots, & Full 3D Roulette")
 
@@ -415,10 +468,192 @@ func _run_checks() -> void:
 	if not _check(y_off < 0.35 and carried > 0.35, "Player failed to ride moving FerrisWheel cabin cleanly (carried=%.2f cab_moved=%.2f y_off=%.2f on_floor=%s p_y=%.2f c_y=%.2f)" % [carried, cab_moved, y_off, str(player.is_on_floor()), player.global_position.y, cab0.global_position.y]): return
 	print("[PASS] Climbable 1-RPM Ferris Wheel on West Hill")
 
+	# 9. Day/Night Modes, Day Duration, & Dark-Gated Searchlights / Ferris Twinkling Bulbs
+	ConfigManager.graphics["day_time_mode"] = 2 # Day 13:00
+	ConfigManager.graphics["day_duration_min"] = 12.0
+	world.weather.apply_time_settings()
+	if not _check(absf(world.sky3d.minutes_per_day - 12.0) < 0.01 and not world.sky3d.game_time_enabled, "Day duration or pause failed"): return
+	if not _check(not world.weather.is_dark_time() and not world.casino_room._searchlights_active and not fw._is_dark, "Lights must stay OFF in daylight"): return
+	if not _check(is_equal_approx(fw._bulb_mats[0].emission_energy_multiplier, 0.0), "Ferris bulbs must stay unlit in daytime"): return
+
+	ConfigManager.graphics["day_time_mode"] = 3 # Sunset 19:36
+	world.weather.apply_time_settings()
+	if not _check(world.weather.is_dark_time() and world.casino_room._searchlights_active and fw._is_dark, "Searchlights & Ferris bulbs must activate at sunset"): return
+	fw._process(0.18)
+	var b_e1: float = fw._bulb_mats[0].emission_energy_multiplier
+	fw._process(0.25)
+	var b_e2: float = fw._bulb_mats[0].emission_energy_multiplier
+	if not _check(b_e1 > 0.05 and absf(b_e2 - b_e1) > 0.01, "Ferris bulbs failed to blink at sunset"): return
+
+	ConfigManager.graphics["day_time_mode"] = 4 # Night 23:30
+	world.weather.apply_time_settings()
+	if not _check(world.sky3d.is_night() and world.weather.is_dark_time() and bool(world.casino_room._searchlights[0]["spot"].visible), "Night spotlight/sky check failed"): return
+	var prev_show_fps := bool(ConfigManager.display.get("show_fps", false))
+	ConfigManager.display["show_fps"] = true
+	ConfigManager.apply_display()
+	if not _check(main._fps_lbl != null and main._fps_lbl.visible, "FPS overlay did not show when show_fps=true"): return
+	ConfigManager.display["show_fps"] = false
+	ConfigManager.apply_display()
+	if not _check(not main._fps_lbl.visible, "FPS overlay did not hide when show_fps=false"): return
+	ConfigManager.display["show_fps"] = prev_show_fps
+	ConfigManager.apply_display()
+	print("[PASS] Day/Night Modes, Day Duration, FPS Display, & Sunset/Night Lights")
+
+	# 10. Multi-Language Support (English + 30 Languages, Native Alphabetical Sort, Folder Scan & Display Dropdown)
+	var langs := ConfigManager.get_languages()
+	if not _check(langs.size() >= 31, "Expected at least 31 languages in game/lang/, got %d" % langs.size()): return
+	if not _check(ConfigManager.get_current_language() == "en", "Default language must be 'en', got '%s'" % ConfigManager.get_current_language()): return
+	var idx_de := -1
+	var idx_en := -1
+	var idx_es := -1
+	var idx_ru := -1
+	var idx_uk := -1
+	for i in range(langs.size()):
+		if i > 0:
+			if not _check(str(langs[i - 1]["sort_key"]) <= str(langs[i]["sort_key"]), "Languages not sorted alphabetically at idx %d: %s vs %s" % [i, langs[i - 1]["name"], langs[i]["name"]]): return
+		var c := str(langs[i]["code"])
+		var nm := str(langs[i]["name"])
+		match c:
+			"de":
+				idx_de = i
+				if not _check(nm == "Deutsch", "Native name mismatch for de: " + nm): return
+			"en":
+				idx_en = i
+				if not _check(nm == "English", "Native name mismatch for en: " + nm): return
+			"es":
+				idx_es = i
+				if not _check(nm == "Español", "Native name mismatch for es: " + nm): return
+			"ru":
+				idx_ru = i
+				if not _check(nm == "Русский", "Native name mismatch for ru: " + nm): return
+			"uk":
+				idx_uk = i
+				if not _check(nm == "Українська", "Native name mismatch for uk: " + nm): return
+	if not _check(idx_de >= 0 and idx_en > idx_de and idx_es > idx_en and idx_ru > idx_es and idx_uk > idx_ru, "Alphabetical order check failed for de/en/es/ru/uk"): return
+
+	var ui_font := ConfigManager.get_ui_font()
+	for cp: int in [ord("Ї"), ord("日"), ord("ع"), ord("अ"), ord("한"), ord("ก")]:
+		if not _check(ui_font.has_char(cp), "UI fallback font missing glyph for codepoint %d" % cp): return
+
+	# Dynamic manual drop-in .cfg test in game/lang/
+	var custom_path := ConfigManager.get_lang_dir().path_join("_tmp_selfcheck_lang.cfg")
+	var tmp_cfg := ConfigFile.new()
+	tmp_cfg.set_value("meta", "native_name", "Azbuka Test")
+	tmp_cfg.set_value("strings", "menu_play", "Play Custom")
+	tmp_cfg.save(custom_path)
+	ConfigManager.load_available_languages()
+	var found_custom := false
+	for entry in ConfigManager.get_languages():
+		if str(entry["code"]) == "_tmp_selfcheck_lang" and str(entry["name"]) == "Azbuka Test":
+			found_custom = true
+			break
+	if not _check(found_custom, "Dynamic game/lang/*.cfg scan failed to pick up added file"): return
+	ConfigManager.set_language("_tmp_selfcheck_lang", false)
+	if not _check(ConfigManager.t("menu_play") == "Play Custom" and ConfigManager.t("menu_quit") == "Quit", "Custom lang override or English fallback failed"): return
+	DirAccess.remove_absolute(custom_path)
+	ConfigManager.load_available_languages()
+
+	# Display Settings Language selector & live switch test
+	main._menu.open_menu()
+	main._menu._open_subtab("display")
+	if not _check(main._menu._opt_lang != null and main._menu._opt_lang.item_count == ConfigManager.get_languages().size(), "Display Language OptionButton count mismatch"): return
+	var uk_opt_idx := -1
+	for i in range(main._menu._opt_lang.item_count):
+		if str(main._menu._opt_lang.get_item_metadata(i)) == "uk":
+			uk_opt_idx = i
+			break
+	if not _check(uk_opt_idx >= 0, "Ukrainian entry missing from Display Language dropdown"): return
+	ConfigManager.set_language("uk", true)
+	await get_tree().process_frame
+	if not _check(main._menu._btn_game.text == "Гра" and main._status_lbl.text.contains("Погода:"), "Live language switch to Ukrainian failed"): return
+	var saved_lang_cfg := ConfigFile.new()
+	if not _check(saved_lang_cfg.load(cfg_path) == OK and str(saved_lang_cfg.get_value("display", "language", "")) == "uk", "Language selection was not saved to config.cfg"): return
+	ConfigManager.set_language("en", true)
+	await get_tree().process_frame
+	if not _check(main._menu._btn_game.text == "Game" and main._status_lbl.text.contains("Weather:"), "Live language switch back to English failed"): return
+	main._menu.close_menu()
+	print("[PASS] Multi-Language (31 langs, alphabetical native names, game/lang scan, live Display UI)")
+
+	# 11. Dedicated Game Section (New/Resume/Save/Load), Controls Tab, & F5/F9 Save/Load World Teleport Sync
+	var save_path := ConfigManager.get_save_path()
+	var prev_save_bytes: PackedByteArray = FileAccess.get_file_as_bytes(save_path) if FileAccess.file_exists(save_path) else PackedByteArray()
+	if FileAccess.file_exists(save_path):
+		DirAccess.remove_absolute(save_path)
+
+	main._menu.set_game_started(true)
+	main._menu.open_menu()
+	if not _check(main._menu._active_tab == "game" and main._menu._btn_resume != null and main._menu._btn_save != null and main._menu._btn_load == null and main._menu._btn_play != null, "Game panel buttons mismatch before any save exists"): return
+	main._menu._open_subtab("controls")
+	if not _check(main._menu._btn_tab_controls != null and main._menu._sub_vbox.get_child_count() >= 20, "Controls settings tab missing full control descriptions"): return
+	main._menu.close_menu()
+
+	# A) F5 on foot at distant ridge -> start Race -> F9 loads back onto foot & restores Terrain3D/Weather/Player sync
+	var foot_pos := Vector3(-124.0, 26.0, -96.0)
+	main._player.global_position = foot_pos
+	main._player._yaw = 1.15
+	main._player._pitch = -0.18
+	main._player._lantern_on = true
+	main._player._lantern.visible = true
+	main._quests.add_chips(333)
+	var chips_saved: int = main._quests.chips
+	main._input(func_make_key(KEY_F5, true))
+	if not _check(ConfigManager.has_save(), "F5 Quick Save failed to create save file"): return
+
+	main._start_race()
+	if not _check(main._is_driving and world.terrain.clipmap_target == main._race_car, "Entering race must focus Terrain3D clipmap on car"): return
+	main._race_car._track_s = 250.0
+	main._race_car._physics_process(0.05)
+	main._quests.add_chips(99)
+
+	main._input(func_make_key(KEY_F9, true))
+	if not _check(not main._is_driving and not main._race_car._active, "F9 Quick Load from Race Car back to foot failed to exit car"): return
+	if not _check(main._player.global_position.distance_to(foot_pos) < 0.05 and absf(main._player._yaw - 1.15) < 0.01 and main._player._lantern_on, "F9 failed to restore exact player position/look/lantern"): return
+	if not _check(main._quests.chips == chips_saved, "F9 failed to restore saved chips (%d vs %d)" % [main._quests.chips, chips_saved]): return
+	if not _check(world.terrain.clipmap_target == main._player and world.terrain.collision_target == main._player and world.weather.player_node == main._player and main._player.get_camera().current, "F9 failed to sync Terrain3D, Weather & Camera back to Player"): return
+
+	# Verify Game panel now offers Quick Load when save exists (both in-game & pre-game)
+	main._menu.open_menu()
+	if not _check(main._menu._btn_load != null, "Game panel must offer Load button when save exists"): return
+	main._menu.set_game_started(false)
+	main._menu._open_subtab("game")
+	if not _check(main._menu._btn_play != null and main._menu._btn_load != null, "Pre-game Game panel must offer Load alongside New Game when save exists"): return
+	main._menu.close_menu()
+	main._menu.set_game_started(true)
+
+	# B) F5 mid-race on distant spiral -> exit to Casino Basement -> F9 loads back into Race Car & snaps Terrain3D
+	main._start_race()
+	main._race_car._phase = 1
+	main._race_car._track_s = 420.0
+	main._race_car._speed = 46.0
+	main._race_car._lap = 2
+	main._race_car._physics_process(0.05)
+	var saved_s: float = main._race_car._track_s
+	main._input(func_make_key(KEY_F5, true))
+
+	main._exit_race()
+	main._player.global_position = Vector3(0.0, 2.5, 0.0)
+	main._world.set_world_focus(main._player, true)
+	main._input(func_make_key(KEY_F9, true))
+	if not _check(main._is_driving and main._race_car._active and absf(main._race_car._track_s - saved_s) < 0.2 and main._race_car._lap == 2, "F9 failed to restore mid-race car state"): return
+	if not _check(world.terrain.clipmap_target == main._race_car and world.terrain.collision_target == main._race_car and world.weather.player_node == main._race_car and main._race_car._cam.current, "F9 failed to sync Terrain3D, Weather & Camera to Race Car"): return
+	main._exit_race()
+
+	if prev_save_bytes.is_empty():
+		if FileAccess.file_exists(save_path):
+			DirAccess.remove_absolute(save_path)
+	else:
+		var fw_prev := FileAccess.open(save_path, FileAccess.WRITE)
+		fw_prev.store_buffer(prev_save_bytes)
+		fw_prev.close()
+	print("[PASS] Game Section, Controls Tab, & F5/F9 Save/Load with Full World/Race Sync")
+
 	main.queue_free()
 	await get_tree().process_frame
 	ConfigManager.graphics = prev_cfg_gfx
+	ConfigManager.display = prev_cfg_display
+	ConfigManager.set_language(prev_lang, false)
 	ConfigManager.apply_graphics()
+	ConfigManager.apply_display()
 	ConfigManager.save_config()
 	print("=== ALL SELF CHECKS PASSED ===")
 	get_tree().quit(0)

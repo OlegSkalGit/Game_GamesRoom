@@ -43,6 +43,9 @@ var _crest_cooldown: float = 0.0
 var _hood_cam: bool = false
 var _cam_pos_smooth: Vector3 = Vector3.ZERO
 var _cam_up_smooth: Vector3 = Vector3.UP
+var _cam_yaw_offset: float = 0.0
+var _cam_pitch_offset: float = 0.0
+var _cam_look_idle_t: float = 0.0
 
 
 func _ready() -> void:
@@ -97,6 +100,9 @@ func start_race() -> void:
 	global_transform = Transform3D(Basis(sp["right"], sp["up"], -(sp["fwd"] as Vector3)), sp["pos"])
 	_cam_pos_smooth = global_position - (sp["fwd"] as Vector3) * 7.6 + (sp["up"] as Vector3) * 2.85
 	_cam_up_smooth = sp["up"]
+	_cam_yaw_offset = 0.0
+	_cam_pitch_offset = 0.0
+	_cam_look_idle_t = 0.0
 	visible = true
 	_active = true
 	_track.set_player_driving(true)
@@ -129,13 +135,25 @@ func reset_to_track() -> void:
 	_speed = 10.0
 	_airborne = false
 	_air_t = 0.0
+	_cam_yaw_offset = 0.0
+	_cam_pitch_offset = 0.0
+	_cam_look_idle_t = 0.0
 	global_transform = Transform3D(Basis(sp["right"], sp["up"], -(sp["fwd"] as Vector3)), sp["pos"])
 
 
 func _input(event: InputEvent) -> void:
 	if not _active:
 		return
-	if event is InputEventKey:
+	if event is InputEventMouseMotion and (Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or DisplayServer.get_name() == "headless"):
+		var mm := event as InputEventMouseMotion
+		_cam_yaw_offset = clampf(_cam_yaw_offset - mm.relative.x * 0.0026, -deg_to_rad(105.0), deg_to_rad(105.0))
+		_cam_pitch_offset = clampf(_cam_pitch_offset - mm.relative.y * 0.0020, -deg_to_rad(24.0), deg_to_rad(30.0))
+		_cam_look_idle_t = 1.8
+	elif event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	elif event is InputEventKey:
 		var k := event as InputEventKey
 		if k.pressed and not k.echo:
 			if k.physical_keycode == KEY_ESCAPE:
@@ -188,7 +206,7 @@ func _physics_process(delta: float) -> void:
 			_track.set_traffic_light("go")
 			_track.set_race_mode("racing")
 			AudioSfx.play_countdown_beep(true)
-			race_banner_updated.emit("РУШ!", Color(0.24, 1.0, 0.48), true)
+			race_banner_updated.emit(ConfigManager.t("race_go"), Color(0.24, 1.0, 0.48), true)
 
 		# Subtle wheel preview & engine vibration during countdown
 		for i: int in range(mini(2, _wheel_pivots.size())):
@@ -257,14 +275,14 @@ func _physics_process(delta: float) -> void:
 				_lap = cur_lap
 				AudioSfx.play_race_lap()
 				_banner_hold_t = 1.85
-				var lap_msg := "ФІНАЛЬНЕ КОЛО 3 / 3!" if _lap == LAPS_TOTAL else ("КОЛО %d / %d" % [_lap, LAPS_TOTAL])
+				var lap_msg := ConfigManager.t("race_final_lap") if _lap == LAPS_TOTAL else (ConfigManager.t("race_lap") % [_lap, LAPS_TOTAL])
 				race_banner_updated.emit(lap_msg, Color(0.98, 0.86, 0.28), true)
 			elif _progress_dist >= float(LAPS_TOTAL) * t_len:
 				_phase = Phase.FINISHED
 				_finished_rank = _compute_rank()
 				AudioSfx.play_race_finish()
 				race_banner_updated.emit(
-					"🏆 ФІНІШ!  Місце: %d / 5  |  Час: %s\n[R] Нова гонка   [Esc] Вийти з боліда" % [_finished_rank, _format_time(_race_time)],
+					ConfigManager.t("race_finish") % [_finished_rank, _format_time(_race_time)],
 					Color(0.32, 1.0, 0.56),
 					true
 				)
@@ -339,20 +357,35 @@ func _physics_process(delta: float) -> void:
 
 
 func _update_camera_and_hud(boosting: bool, allow_speed_fov: bool, delta: float) -> void:
+	if _cam_look_idle_t > 0.0:
+		_cam_look_idle_t = maxf(0.0, _cam_look_idle_t - delta)
+	elif absf(_speed) > 6.0:
+		_cam_yaw_offset = move_toward(_cam_yaw_offset, 0.0, delta * 1.15)
+		_cam_pitch_offset = move_toward(_cam_pitch_offset, 0.0, delta * 0.95)
+
 	var sp_cur: Dictionary = _track.sample_at_s(_track_s) if _track else {}
 	var in_loop := bool(sp_cur.get("is_loop", false))
 	var basis_now := global_transform.basis
 	var cam_fwd := -basis_now.z
 	var cam_up := basis_now.y
+	var look_fwd := (Basis(cam_up, _cam_yaw_offset) * cam_fwd).normalized()
+	var look_right := look_fwd.cross(cam_up)
+	if look_right.length_squared() < 0.001:
+		look_right = basis_now.x
+	else:
+		look_right = look_right.normalized()
+	look_fwd = (Basis(look_right, _cam_pitch_offset) * look_fwd).normalized()
+
 	if _hood_cam:
-		_cam.global_transform = Transform3D(basis_now, global_position + cam_up * 1.48 + cam_fwd * 0.55)
+		var hood_up := look_right.cross(look_fwd).normalized()
+		_cam.global_transform = Transform3D(Basis(look_right, hood_up, -look_fwd), global_position + cam_up * 1.48 + cam_fwd * 0.55)
 	else:
 		var up_lift := 3.18 if in_loop else 2.82
-		var target_cam_pos := global_position - cam_fwd * 7.6 + cam_up * up_lift
+		var target_cam_pos := global_position - look_fwd * 7.6 + cam_up * up_lift
 		_cam_pos_smooth = _cam_pos_smooth.lerp(target_cam_pos, clampf(delta * 11.5, 0.0, 1.0))
 		_cam_up_smooth = _cam_up_smooth.lerp(cam_up, clampf(delta * (10.5 if in_loop else 7.8), 0.0, 1.0)).normalized()
 		_cam.global_position = _cam_pos_smooth
-		_cam.look_at(global_position + cam_fwd * 6.8 + _cam_up_smooth * 0.9, _cam_up_smooth)
+		_cam.look_at(global_position + look_fwd * 6.8 + _cam_up_smooth * 0.9, _cam_up_smooth)
 	if allow_speed_fov:
 		_cam.fov = lerpf(_cam.fov, 88.0 if boosting else clampf(72.0 + absf(_speed) * 0.24, 72.0, 85.0), delta * 6.0)
 	else:
@@ -360,7 +393,7 @@ func _update_camera_and_hud(boosting: bool, allow_speed_fov: bool, delta: float)
 
 	var rank := _finished_rank if _phase == Phase.FINISHED else _compute_rank()
 	var kmh := int(round(absf(_speed) * 3.6))
-	hud_updated.emit("Швидкість: %d км/год  |  Місце: %d/%d  |  Коло: %d/%d  |  Час: %s  |  Нітро: %d%%  |  [Shift] Нітро  [V] Камера  [R] Рестарт  [Esc] Вийти" % [kmh, rank, _track.rivals.size() + 1, _lap, LAPS_TOTAL, _format_time(_race_time), int(round(_nitro))])
+	hud_updated.emit(ConfigManager.t("race_hud") % [kmh, rank, _track.rivals.size() + 1, _lap, LAPS_TOTAL, _format_time(_race_time), int(round(_nitro))])
 
 
 func _compute_rank() -> int:
@@ -378,3 +411,83 @@ static func _format_time(sec: float) -> String:
 	var s := total_s % 60
 	var m := total_s / 60
 	return "%02d:%02d.%d" % [m, s, ds]
+
+
+func get_save_state() -> Dictionary:
+	return {
+		"track_s": _track_s,
+		"lat": _lat,
+		"speed": _speed,
+		"steer_input": _steer_input,
+		"rel_yaw": _rel_yaw,
+		"nitro": _nitro,
+		"lap": _lap,
+		"phase": _phase,
+		"race_time": _race_time,
+		"finished_rank": _finished_rank,
+		"progress_dist": _progress_dist,
+		"airborne": _airborne,
+		"air_vel": _air_vel,
+		"air_t": _air_t,
+		"air_pos": global_position,
+		"crest_cooldown": _crest_cooldown,
+		"countdown_t": _countdown_t,
+		"countdown_step": _countdown_step,
+		"banner_hold_t": _banner_hold_t,
+		"hood_cam": _hood_cam,
+		"cam_yaw": _cam_yaw_offset,
+		"cam_pitch": _cam_pitch_offset
+	}
+
+
+func apply_save_state(st: Dictionary) -> void:
+	if _track == null:
+		return
+	_track_s = float(st.get("track_s", 0.0))
+	_lat = float(st.get("lat", 0.0))
+	_speed = float(st.get("speed", 0.0))
+	_steer_input = float(st.get("steer_input", 0.0))
+	_rel_yaw = float(st.get("rel_yaw", 0.0))
+	_nitro = float(st.get("nitro", 100.0))
+	_lap = int(st.get("lap", 1))
+	_phase = int(st.get("phase", Phase.RACING))
+	_race_time = float(st.get("race_time", 0.0))
+	_finished_rank = int(st.get("finished_rank", 0))
+	_progress_dist = float(st.get("progress_dist", 0.0))
+	_airborne = bool(st.get("airborne", false))
+	_air_vel = st.get("air_vel", Vector3.ZERO) as Vector3
+	_air_t = float(st.get("air_t", 0.0))
+	_crest_cooldown = float(st.get("crest_cooldown", 0.0))
+	_countdown_t = float(st.get("countdown_t", 0.0))
+	_countdown_step = int(st.get("countdown_step", 0))
+	_banner_hold_t = float(st.get("banner_hold_t", 0.0))
+	_hood_cam = bool(st.get("hood_cam", false))
+	_cam_yaw_offset = float(st.get("cam_yaw", 0.0))
+	_cam_pitch_offset = float(st.get("cam_pitch", 0.0))
+	_cam_look_idle_t = 1.8 if (absf(_cam_yaw_offset) > 0.01 or absf(_cam_pitch_offset) > 0.01) else 0.0
+
+	var sp: Dictionary = _track.sample_at_s(_track_s)
+	if not sp.is_empty():
+		_track_idx = int(sp.get("idx", 0))
+		var fwd: Vector3 = sp["fwd"]
+		var up: Vector3 = sp["up"]
+		var right: Vector3 = sp["right"]
+		var c_pos: Vector3 = (st.get("air_pos", sp["pos"]) as Vector3) if _airborne else ((sp["pos"] as Vector3) + right * _lat)
+		var c_basis := Basis(right, up, -fwd) * Basis(Vector3.UP, _rel_yaw)
+		global_transform = Transform3D(c_basis, c_pos)
+		_cam_pos_smooth = c_pos - fwd * 7.6 + up * 2.82
+		_cam_up_smooth = up
+
+	visible = true
+	_active = true
+	_track.set_player_driving(true)
+	_cam.current = true
+	reset_physics_interpolation()
+	_cam.reset_physics_interpolation()
+	if DisplayServer.get_name() != "headless":
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	_update_camera_and_hud(false, false, 0.016)
+	if _phase == Phase.FINISHED:
+		race_banner_updated.emit(ConfigManager.t("race_finish") % [_finished_rank, _format_time(_race_time)], Color(0.32, 1.0, 0.56), true)
+	else:
+		race_banner_updated.emit("", Color.WHITE, false)

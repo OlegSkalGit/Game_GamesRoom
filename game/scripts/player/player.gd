@@ -89,6 +89,34 @@ func reset_to_casino_spawn() -> void:
 	_camera.position = Vector3(0, EYE_HEIGHT, 0)
 	_camera.rotation = Vector3(_pitch, _yaw, 0.0)
 	_camera.fov = 74.0
+	reset_physics_interpolation()
+	_camera.reset_physics_interpolation()
+
+
+func get_save_state() -> Dictionary:
+	return {
+		"pos": global_position,
+		"yaw": _yaw,
+		"pitch": _pitch,
+		"lantern": _lantern_on
+	}
+
+
+func apply_save_state(st: Dictionary) -> void:
+	global_position = st.get("pos", Vector3(0.0, 6.12, 4.4)) as Vector3
+	velocity = Vector3.ZERO
+	_yaw = float(st.get("yaw", 0.0))
+	_pitch = clampf(float(st.get("pitch", -0.04)), -1.35, 1.35)
+	_lantern_on = bool(st.get("lantern", false))
+	_lantern.visible = _lantern_on
+	rotation = Vector3.ZERO
+	_camera.position = Vector3(0, EYE_HEIGHT, 0)
+	_camera.rotation = Vector3(_pitch, _yaw, 0.0)
+	_camera.fov = 74.0
+	reset_physics_interpolation()
+	_camera.reset_physics_interpolation()
+	_clear_target()
+	_ray.force_raycast_update()
 
 
 func set_controls_active(active: bool) -> void:

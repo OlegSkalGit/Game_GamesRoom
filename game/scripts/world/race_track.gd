@@ -19,8 +19,9 @@ var pit_parked_car: Node3D
 var terrain_height_fn: Callable = Callable()
 
 var _road_mesh_inst: MeshInstance3D
+var _rail_mesh_inst: MeshInstance3D
 var _pillar_mm: MultiMeshInstance3D
-var _rail_mm: MultiMeshInstance3D
+var _pillar_positions: Array[Dictionary] = []
 var _gantry_light: OmniLight3D
 var _tl_bulbs: Dictionary = {"red": [], "amber": [], "green": []}
 var _tl_mats: Dictionary = {}
@@ -47,81 +48,100 @@ func _ready() -> void:
 func _build_track_frames() -> void:
 	frames.clear()
 
-	# 4 asymmetric Clothoid Loops spiraling cleanly around mid & outermost edges (helix inward offset)
-	var loop1 := _sample_clothoid_loop(Vector3(126.0, 26.0, 24.0), Vector3(0.0, 0.0, -1.0), 13.5, -16.0, 64)
-	var end1: Vector3 = loop1[loop1.size() - 1]["pos"]
-	var loop2 := _sample_clothoid_loop(Vector3(42.0, 30.0, -142.0), Vector3(-1.0, 0.0, 0.0), 13.5, -16.0, 64)
-	var end2: Vector3 = loop2[loop2.size() - 1]["pos"]
-	var loop3 := _sample_clothoid_loop(Vector3(42.0, 28.0, -234.0), Vector3(-1.0, 0.0, 0.0), 16.0, -16.5, 68)
-	var end3: Vector3 = loop3[loop3.size() - 1]["pos"]
-	var loop4 := _sample_clothoid_loop(Vector3(-234.0, 28.0, -24.0), Vector3(0.0, 0.0, 1.0), 14.5, -16.0, 64)
-	var end4: Vector3 = loop4[loop4.size() - 1]["pos"]
+	# 2 Double Spirals (2.25 stacked turns each = 810 deg corkscrew climb & corkscrew descent!)
+	var spiral1 := _sample_spiral_helix(Vector3(126.0, 12.0, 134.0), Vector3(0.0, 0.0, 1.0), -1.0, 2.25, 42.0, 34.0, 54.0, 168)
+	var end_s1: Vector3 = spiral1[spiral1.size() - 1]
+	var dir_s1 := Vector3(1.0, 0.0, 0.0)
+
+	var spiral2 := _sample_spiral_helix(Vector3(-164.0, 58.0, -174.0), Vector3(-1.0, 0.0, 0.0), -1.0, 2.25, 40.0, 32.0, 18.0, 168)
+	var end_s2: Vector3 = spiral2[spiral2.size() - 1]
+	var dir_s2 := Vector3(0.0, 0.0, 1.0)
+
+	# 4 Clothoid 360-degree Vertical Loops placed around perimeter ridges & valleys
+	var loop1 := _sample_clothoid_loop(Vector3(232.0, 22.0, -24.0), Vector3(0.0, 0.0, -1.0), 14.0, -16.0, 64)
+	var end_l1: Vector3 = loop1[loop1.size() - 1]["pos"]
+	var loop2 := _sample_clothoid_loop(Vector3(38.0, 24.0, -234.0), Vector3(-1.0, 0.0, 0.0), 14.0, -16.0, 64)
+	var end_l2: Vector3 = loop2[loop2.size() - 1]["pos"]
+	var loop3 := _sample_clothoid_loop(Vector3(-234.0, 20.0, -32.0), Vector3(0.0, 0.0, 1.0), 14.5, -16.0, 64)
+	var end_l3: Vector3 = loop3[loop3.size() - 1]["pos"]
+	var loop4 := _sample_clothoid_loop(Vector3(-20.0, 18.0, 224.0), Vector3(1.0, 0.0, 0.0), 14.5, -16.0, 64)
+	var end_l4: Vector3 = loop4[loop4.size() - 1]["pos"]
 
 	# Frame 0 starts strictly at PIT_POS (-16, 6.3, 72) heading +X (Start/Finish Gantry line -> s=0.0!)
 	var sec0_pts: Array[Vector3] = [
 		Vector3(-16.0, 6.3, 72.0),
 		Vector3(18.0, 6.3, 72.0),
-		Vector3(56.0, 9.2, 88.0),
-		Vector3(102.0, 18.0, 84.0),
-		Vector3(126.0, 26.0, 52.0),
-		Vector3(126.0, 26.0, 24.0)
+		Vector3(62.0, 13.0, 92.0),
+		Vector3(114.0, 11.0, 110.0),
+		Vector3(126.0, 12.0, 134.0)
 	]
 	var sec1_pts: Array[Vector3] = [
-		end1,
-		Vector3(end1.x, 28.5, end1.z - 28.0),
-		Vector3(124.0, 36.0, -88.0),
-		Vector3(96.0, 33.0, -134.0),
-		Vector3(68.0, 30.0, -142.0),
-		Vector3(42.0, 30.0, -142.0)
+		end_s1,
+		Vector3(198.0, 56.0, 168.0),      # Smooth straight exit from Double Spiral 1
+		Vector3(228.0, 62.0, 148.0),      # Steep East climb peak 1
+		Vector3(234.0, 18.0, 92.0),       # 44m plunge into East canyon
+		Vector3(234.0, 64.0, 38.0),       # 46m Eagle Peak steep climb
+		Vector3(232.0, 22.0, -24.0)       # Rapid dive into Loop 1
 	]
 	var sec2_pts: Array[Vector3] = [
-		end2,
-		Vector3(end2.x - 26.0, 31.0, end2.z),
-		Vector3(-34.0, 38.2, end2.z - 2.0), # High tabletop boost jump crest overlooking valley!
-		Vector3(-94.0, 29.0, -120.0),
-		Vector3(-144.0, 40.0, -76.0),
-		Vector3(-156.0, 46.0, 12.0),         # West-inner mountain ridge climb
-		Vector3(-134.0, 35.0, 102.0),
-		Vector3(-76.0, 27.0, 148.0),         # High inner spiral flyover bridge (Y=27m)
-		Vector3(36.0, 20.0, 198.0),          # Sweeping outward to SE border
-		Vector3(148.0, 32.0, 226.0),
-		Vector3(220.0, 44.0, 166.0),
-		Vector3(234.0, 50.0, 48.0),          # Extreme East border peak
-		Vector3(232.0, 38.0, -76.0),
-		Vector3(216.0, 46.0, -184.0),
-		Vector3(142.0, 34.0, -230.0),
-		Vector3(72.0, 28.0, -234.0),
-		Vector3(42.0, 28.0, -234.0)
+		end_l1,
+		Vector3(216.0, 52.0, -96.0),      # Steep NE climb
+		Vector3(198.0, 20.0, -184.0),     # Fast drop into NE curve
+		Vector3(132.0, 36.0, -228.0),
+		Vector3(68.0, 24.0, -234.0),
+		Vector3(38.0, 24.0, -234.0)
 	]
 	var sec3_pts: Array[Vector3] = [
-		end3,
-		Vector3(end3.x - 28.0, 29.5, end3.z),
-		Vector3(-76.0, 38.0, -216.0),
-		Vector3(-175.0, 48.0, -200.0),       # Extreme NW mountain peak
-		Vector3(-228.0, 42.0, -128.0),
-		Vector3(-234.0, 28.0, -52.0),
-		Vector3(-234.0, 28.0, -24.0)
+		end_l2,
+		Vector3(end_l2.x - 24.0, 27.0, end_l2.z),
+		Vector3(-32.0, 42.0, -212.0),     # High Tabletop Boost Jump Crest!
+		Vector3(-86.0, 23.0, -196.0),
+		Vector3(-124.0, 58.0, -174.0),    # Steep climb to NW Spiral 2 top
+		Vector3(-164.0, 58.0, -174.0)
 	]
 	var sec4_pts: Array[Vector3] = [
-		end4,
-		Vector3(end4.x, 26.5, end4.z + 30.0),
-		Vector3(-218.0, 31.0, 118.0),        # Extreme West/SW border
-		Vector3(-196.0, 26.0, 196.0),
-		Vector3(-138.0, 18.0, 224.0),        # Extreme South rim
-		Vector3(-98.0, 11.2, 178.0),         # Passes 15.8m cleanly under flyover bridge!
-		Vector3(-92.0, 7.6, 108.0),
-		Vector3(-74.0, 6.3, 74.0),
-		Vector3(-42.0, 6.3, 72.0),           # Straight 4-wide Starting Grid approach
+		end_s2,
+		Vector3(-232.0, 46.0, -92.0),     # West cliff climb after NW Spiral 2
+		Vector3(-234.0, 20.0, -32.0)
+	]
+	var sec5_pts: Array[Vector3] = [
+		end_l3,
+		Vector3(-224.0, 52.0, 56.0),      # Steep SW mountain peak
+		Vector3(-204.0, 20.0, 148.0),     # Steep 32m ocean-valley plunge
+		Vector3(-154.0, 44.0, 214.0),     # South-West ridge climb
+		Vector3(-78.0, 20.0, 224.0),
+		Vector3(-20.0, 18.0, 224.0)
+	]
+	var sec6_pts: Array[Vector3] = [
+		end_l4,
+		Vector3(34.0, 28.0, 202.0),
+		Vector3(46.0, 32.0, 160.0),
+		Vector3(-28.0, 30.0, 134.0),      # Elevated panoramic return bridge
+		Vector3(-102.0, 12.0, 114.0),     # Fast sweep down to valley floor
+		Vector3(-84.0, 6.8, 76.0),
+		Vector3(-52.0, 6.3, 72.0),        # Straight Starting Grid approach
 		Vector3(-16.0, 6.3, 72.0)
 	]
 
+	var road0 := _sample_hermite_road(sec0_pts, Vector3(1, 0, 0), Vector3(0, 0, 1), 3.0)
+	var road1 := _sample_hermite_road(sec1_pts, dir_s1, Vector3(0, 0, -1), 3.0)
+	var road2 := _sample_hermite_road(sec2_pts, Vector3(0, 0, -1), Vector3(-1, 0, 0), 3.0)
+	var road3 := _sample_hermite_road(sec3_pts, Vector3(-1, 0, 0), Vector3(-1, 0, 0), 3.0)
+	var road4 := _sample_hermite_road(sec4_pts, dir_s2, Vector3(0, 0, 1), 3.0)
+	var road5 := _sample_hermite_road(sec5_pts, Vector3(0, 0, 1), Vector3(1, 0, 0), 3.0)
+	var road6 := _sample_hermite_road(sec6_pts, Vector3(1, 0, 0), Vector3(1, 0, 0), 3.0)
+
 	var empty_loop: Array[Dictionary] = []
 	var sections: Array = [
-		{"road": _sample_hermite_road(sec0_pts, Vector3(1, 0, 0), Vector3(0, 0, -1), 3.0), "loop": loop1},
-		{"road": _sample_hermite_road(sec1_pts, Vector3(0, 0, -1), Vector3(-1, 0, 0), 3.0), "loop": loop2},
-		{"road": _sample_hermite_road(sec2_pts, Vector3(-1, 0, 0), Vector3(-1, 0, 0), 3.0), "loop": loop3},
-		{"road": _sample_hermite_road(sec3_pts, Vector3(-1, 0, 0), Vector3(0, 0, 1), 3.0), "loop": loop4},
-		{"road": _sample_hermite_road(sec4_pts, Vector3(0, 0, 1), Vector3(1, 0, 0), 3.0), "loop": empty_loop}
+		{"road": road0, "loop": empty_loop},
+		{"road": spiral1, "loop": empty_loop},
+		{"road": road1, "loop": loop1},
+		{"road": road2, "loop": loop2},
+		{"road": road3, "loop": empty_loop},
+		{"road": spiral2, "loop": empty_loop},
+		{"road": road4, "loop": loop3},
+		{"road": road5, "loop": loop4},
+		{"road": road6, "loop": empty_loop}
 	]
 
 	# Build unified ordered point & tangent sequence
@@ -131,7 +151,7 @@ func _build_track_frames() -> void:
 		for ri: int in range(r_pts.size() - 1):
 			var p: Vector3 = r_pts[ri]
 			var flat_grid := (p.x > -58.0 and p.x < 22.0 and absf(p.z - 72.0) < 6.0)
-			var crest_boost := (p.x > -34.0 and p.x < 4.0 and p.z < -146.0 and p.z > -172.0)
+			var crest_boost := (p.x > -40.0 and p.x < -4.0 and p.z < -198.0 and p.z > -226.0)
 			raw_frames.append({"pos": p, "is_loop": false, "loop_u": 0.0, "is_flat": flat_grid, "is_crest": crest_boost})
 		var l_pts: Array = sec["loop"]
 		for li: int in range(maxi(l_pts.size() - 1, 0)):
@@ -225,6 +245,23 @@ func _build_track_frames() -> void:
 			"s": total_length
 		})
 		total_length += p.distance_to(next_p)
+
+
+func _sample_spiral_helix(start_pos: Vector3, fwd_dir: Vector3, turn_sign: float, turns: float, r_start: float, r_end: float, y_end: float, steps: int = 168) -> Array[Vector3]:
+	var fwd0 := Vector3(fwd_dir.x, 0.0, fwd_dir.z).normalized()
+	var right0 := fwd0.cross(Vector3.UP).normalized()
+	var center := start_pos + right0 * (turn_sign * r_start)
+	var rad0 := -right0 * turn_sign
+	var out: Array[Vector3] = []
+	for i: int in range(steps + 1):
+		var u := float(i) / float(steps)
+		var su := u * u * (3.0 - 2.0 * u)
+		var r := lerpf(r_start, r_end, su)
+		var y := lerpf(start_pos.y, y_end, su)
+		var theta := u * turns * TAU
+		var radial := rad0.rotated(Vector3.UP, -turn_sign * theta)
+		out.append(Vector3(center.x + radial.x * r, y, center.z + radial.z * r))
+	return out
 
 
 func _sample_hermite_road(ctrl_pts: Array[Vector3], entry_tan: Vector3, exit_tan: Vector3, step_m: float = 3.0) -> Array[Vector3]:
@@ -369,19 +406,50 @@ func _build_track_geometry_and_collision() -> void:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
+	var rail_st := SurfaceTool.new()
+	rail_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var rail_mat := StandardMaterial3D.new()
+	rail_mat.vertex_color_use_as_albedo = true
+	rail_mat.metallic = 0.28
+	rail_mat.roughness = 0.44
+	rail_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var r_nor := load("res://assets/textures/pbr/marble_01/nor.jpg") as Texture2D
+	if r_nor:
+		rail_mat.normal_enabled = true; rail_mat.normal_texture = r_nor; rail_mat.normal_scale = 0.55
+
 	var col_body := StaticBody3D.new()
 	col_body.name = "RaceTrackCollider"
 	add_child(col_body)
 
+	_pillar_positions.clear()
 	var pillar_tfs: Array[Transform3D] = []
-	var rail_tfs: Array[Transform3D] = []
 	var lamp_positions: Array[Vector3] = []
 
 	var n := frames.size()
+	var rail_h_left := PackedFloat32Array()
+	var rail_h_right := PackedFloat32Array()
+	rail_h_left.resize(n)
+	rail_h_right.resize(n)
+	for i: int in range(n):
+		var f_r: Dictionary = frames[i]
+		var fp: Vector3 = f_r["pos"]
+		var in_lp := bool(f_r["is_loop"])
+		var pit_open := bool(f_r["is_pit"]) and fp.x >= -28.0 and fp.x <= 6.0 and absf(fp.z - 72.0) < 6.0
+		rail_h_left[i] = 0.24 if in_lp else (0.12 if pit_open else 0.90)
+		rail_h_right[i] = 0.24 if in_lp else 0.90
+	for _rpass: int in range(3):
+		var nl := PackedFloat32Array(); var nr := PackedFloat32Array()
+		nl.resize(n); nr.resize(n)
+		for i: int in range(n):
+			nl[i] = 0.25 * rail_h_left[(i - 1 + n) % n] + 0.50 * rail_h_left[i] + 0.25 * rail_h_left[(i + 1) % n]
+			nr[i] = 0.25 * rail_h_right[(i - 1 + n) % n] + 0.50 * rail_h_right[i] + 0.25 * rail_h_right[(i + 1) % n]
+		rail_h_left = nl; rail_h_right = nr
+
 	var uv_s := 0.0
 	for i: int in range(n):
+		var ni := (i + 1) % n
 		var a: Dictionary = frames[i]
-		var b: Dictionary = frames[(i + 1) % n]
+		var b: Dictionary = frames[ni]
 		var pa: Vector3 = a["pos"]
 		var pb: Vector3 = b["pos"]
 		var seg_d := pa.distance_to(pb)
@@ -391,6 +459,8 @@ func _build_track_geometry_and_collision() -> void:
 
 		var ra: Vector3 = a["right"] * (float(a["width"]) * 0.5)
 		var rb: Vector3 = b["right"] * (float(b["width"]) * 0.5)
+		var ra_u: Vector3 = a["right"]
+		var rb_u: Vector3 = b["right"]
 		var ua: Vector3 = a["up"]
 		var ub: Vector3 = b["up"]
 
@@ -414,8 +484,8 @@ func _build_track_geometry_and_collision() -> void:
 		var thick_a: Vector3 = -ua * 0.52
 		var thick_b: Vector3 = -ub * 0.52
 		_add_quad_uv(st, pb - rb + thick_b, pb + rb + thick_b, pa + ra + thick_a, pa - ra + thick_a, -ub, -ua, Color(0.16, 0.17, 0.20), Vector2.ZERO, Vector2.RIGHT, Vector2.ONE, Vector2.DOWN)
-		_add_quad_uv(st, pa - ra + thick_a, pa - ra, pb - rb, pb - rb + thick_b, -ra.normalized(), -rb.normalized(), Color(0.32, 0.33, 0.37), Vector2.ZERO, Vector2.RIGHT, Vector2.ONE, Vector2.DOWN)
-		_add_quad_uv(st, pa + ra, pa + ra + thick_a, pb + rb + thick_b, pb + rb, ra.normalized(), rb.normalized(), Color(0.32, 0.33, 0.37), Vector2.ZERO, Vector2.RIGHT, Vector2.ONE, Vector2.DOWN)
+		_add_quad_uv(st, pa - ra + thick_a, pa - ra, pb - rb, pb - rb + thick_b, -ra_u, -rb_u, Color(0.32, 0.33, 0.37), Vector2.ZERO, Vector2.RIGHT, Vector2.ONE, Vector2.DOWN)
+		_add_quad_uv(st, pa + ra, pa + ra + thick_a, pb + rb + thick_b, pb + rb, ra_u, rb_u, Color(0.32, 0.33, 0.37), Vector2.ZERO, Vector2.RIGHT, Vector2.ONE, Vector2.DOWN)
 
 		var seg_mid := (pa + pb) * 0.5 - ((ua + ub) * 0.5) * 0.26
 		var seg_len := seg_d + 0.16
@@ -430,17 +500,70 @@ func _build_track_geometry_and_collision() -> void:
 		cs.transform = Transform3D(Basis(seg_right, seg_up, -seg_fwd), seg_mid)
 		col_body.add_child(cs)
 
-		# Steel/Concrete support pylons anchored into exact terrain surface below track
-		if not bool(a["is_loop"]) and i % 6 == 0:
-			var ground_h := _query_terrain_height(pa.x, pa.z)
-			if pa.y > ground_h + 1.0:
-				var p_h := maxf(pa.y - ground_h + 2.8, 2.2)
-				pillar_tfs.append(Transform3D(Basis.IDENTITY.scaled(Vector3(1.0, p_h, 1.0)), Vector3(pa.x, pa.y - 0.45 - p_h * 0.5, pa.z)))
+		# Continuous monolithic Jersey barriers extruded seamlessly along both edges
+		for s_dir: float in [-1.0, 1.0]:
+			var h_a := rail_h_left[i] if s_dir < 0.0 else rail_h_right[i]
+			var h_b := rail_h_left[ni] if s_dir < 0.0 else rail_h_right[ni]
+			var ea := pa + ra * s_dir
+			var eb := pb + rb * s_dir
+			var dir_out_a := ra_u * s_dir
+			var dir_out_b := rb_u * s_dir
 
-		# Metallic side guardrails on all non-loop outer edges
-		if not bool(a["is_loop"]) and not bool(a["is_pit"]) and i % 2 == 0:
-			rail_tfs.append(Transform3D(Basis(seg_right, seg_up, -seg_fwd), pa + ra * 0.96 + ua * 0.42))
-			rail_tfs.append(Transform3D(Basis(seg_right, seg_up, -seg_fwd), pa - ra * 0.96 + ua * 0.42))
+			var a_ib := ea - dir_out_a * 0.34
+			var a_it := ea - dir_out_a * 0.18 + ua * h_a
+			var a_ot := ea + dir_out_a * 0.06 + ua * h_a
+			var a_ob := ea + dir_out_a * 0.06 - ua * 0.50
+
+			var b_ib := eb - dir_out_b * 0.34
+			var b_it := eb - dir_out_b * 0.18 + ub * h_b
+			var b_ot := eb + dir_out_b * 0.06 + ub * h_b
+			var b_ob := eb + dir_out_b * 0.06 - ub * 0.50
+
+			var wall_c := Color(0.68, 0.72, 0.77) if not bool(a["is_loop"]) else Color(0.24, 0.34, 0.44)
+			var cap_c := Color(0.92, 0.30, 0.18) if (bool(a["is_crest_boost"]) or bool(a["is_boost"])) else (Color(0.20, 0.86, 1.0) if bool(a["is_loop"]) else Color(0.86, 0.88, 0.92))
+			# Inner sloped face, top cap, and outer face
+			_add_quad_uv(rail_st, a_ib, a_it, b_it, b_ib, -dir_out_a, -dir_out_b, wall_c, Vector2(0, v0), Vector2(1, v0), Vector2(1, v1), Vector2(0, v1))
+			_add_quad_uv(rail_st, a_it, a_ot, b_ot, b_it, ua, ub, cap_c, Vector2(0, v0), Vector2(1, v0), Vector2(1, v1), Vector2(0, v1))
+			_add_quad_uv(rail_st, a_ot, a_ob, b_ob, b_ot, dir_out_a, dir_out_b, wall_c.darkened(0.14), Vector2(0, v0), Vector2(1, v0), Vector2(1, v1), Vector2(0, v1))
+
+			var h_mid := 0.5 * (h_a + h_b)
+			if h_mid >= 0.45:
+				var wcs := CollisionShape3D.new()
+				var wbox := BoxShape3D.new()
+				wbox.size = Vector3(0.32, h_mid, seg_len)
+				wcs.shape = wbox
+				var edge_mid := 0.5 * (ea + eb) - 0.5 * (dir_out_a + dir_out_b) * 0.14 + seg_up * (h_mid * 0.5)
+				wcs.transform = Transform3D(Basis(seg_right, seg_up, -seg_fwd), edge_mid)
+				col_body.add_child(wcs)
+
+		# Support pylons strictly verified NOT to intersect ANY other track coil, loop, or flyover
+		if not bool(a["is_loop"]) and i % 6 == 0:
+			var ground_c := _query_terrain_height(pa.x, pa.z)
+			var slope_pad := absf((a["fwd"] as Vector3).y) * 1.15
+			var center_top := pa.y - 0.56 - slope_pad
+			if center_top > ground_c + 1.0:
+				var r_xz := Vector3(ra_u.x, 0.0, ra_u.z)
+				if r_xz.length_squared() < 0.01:
+					r_xz = Vector3.RIGHT
+				else:
+					r_xz = r_xz.normalized()
+				var c_xz := Vector2(pa.x, pa.z)
+				if _can_place_pillar(c_xz, center_top, ground_c, i, false):
+					var p_h := maxf(center_top - ground_c + 2.6, 2.2)
+					pillar_tfs.append(Transform3D(Basis.IDENTITY.scaled(Vector3(1.0, p_h, 1.0)), Vector3(c_xz.x, center_top - p_h * 0.5, c_xz.y)))
+					_pillar_positions.append({"xz": c_xz, "top_y": center_top, "bot_y": ground_c, "idx": i, "outrigger": false})
+				else:
+					var outriggers: Array[Vector2] = [
+						Vector2(pa.x + r_xz.x * 7.8, pa.z + r_xz.z * 7.8),
+						Vector2(pa.x - r_xz.x * 7.8, pa.z - r_xz.z * 7.8)
+					]
+					for cand: Vector2 in outriggers:
+						var gh := _query_terrain_height(cand.x, cand.y)
+						var top_y := pa.y - 0.56 - slope_pad
+						if top_y > gh + 1.0 and _can_place_pillar(cand, top_y, gh, i, true):
+							var p_h := maxf(top_y - gh + 2.6, 2.2)
+							pillar_tfs.append(Transform3D(Basis.IDENTITY.scaled(Vector3(1.0, p_h, 1.0)), Vector3(cand.x, top_y - p_h * 0.5, cand.y)))
+							_pillar_positions.append({"xz": cand, "top_y": top_y, "bot_y": gh, "idx": i, "outrigger": true})
 
 		if bool(a["is_loop"]) and i % 28 == 14:
 			lamp_positions.append(pa + ua * 4.0)
@@ -450,6 +573,12 @@ func _build_track_geometry_and_collision() -> void:
 	_road_mesh_inst.mesh = st.commit()
 	_road_mesh_inst.material_override = road_mat
 	add_child(_road_mesh_inst)
+
+	_rail_mesh_inst = MeshInstance3D.new()
+	_rail_mesh_inst.name = "RaceTrackBarrierMesh"
+	_rail_mesh_inst.mesh = rail_st.commit()
+	_rail_mesh_inst.material_override = rail_mat
+	add_child(_rail_mesh_inst)
 
 	if pillar_tfs.size() > 0:
 		var pm := CylinderMesh.new(); pm.top_radius = 0.62; pm.bottom_radius = 0.85; pm.height = 1.0
@@ -461,15 +590,30 @@ func _build_track_geometry_and_collision() -> void:
 			p_mat.normal_enabled = true; p_mat.normal_texture = p_nor; p_mat.normal_scale = 0.7
 		_pillar_mm = _add_mm(pm, p_mat, pillar_tfs)
 
-	if rail_tfs.size() > 0:
-		var rm := BoxMesh.new(); rm.size = Vector3(0.24, 0.72, maxf(total_length / float(n) * 2.1, 3.0))
-		var r_mat := StandardMaterial3D.new()
-		r_mat.albedo_color = Color(0.76, 0.80, 0.86)
-		r_mat.metallic = 0.82
-		r_mat.roughness = 0.26
-		_rail_mm = _add_mm(rm, r_mat, rail_tfs)
-
 	_build_loop_neon_rings(lamp_positions)
+
+
+func _can_place_pillar(col_xz: Vector2, top_y: float, ground_h: float, own_idx: int, is_outrigger: bool = false) -> bool:
+	if absf(col_xz.x) < 26.0 and absf(col_xz.y) < 18.0:
+		return false
+	if col_xz.distance_to(Vector2(-16.0, 64.0)) < 16.0:
+		return false
+	if col_xz.distance_to(Vector2(-58.0, 34.0)) < 18.0:
+		return false
+	if col_xz.y >= 10.0 and col_xz.y <= 70.0 and absf(col_xz.x) < 26.0:
+		return false
+	var n := frames.size()
+	for j: int in range(n):
+		var d_idx := mini(abs(j - own_idx), n - abs(j - own_idx))
+		if not is_outrigger and d_idx <= 4:
+			continue
+		var qf: Dictionary = frames[j]
+		var qp: Vector3 = qf["pos"]
+		var q_clear := float(qf["width"]) * 0.5 + 2.5
+		if Vector2(qp.x - col_xz.x, qp.z - col_xz.y).length() < q_clear:
+			if qp.y <= top_y + 1.8 and qp.y >= ground_h - 1.5:
+				return false
+	return true
 
 
 func _query_terrain_height(x: float, z: float) -> float:
@@ -560,7 +704,8 @@ func _build_pit_stop_station() -> void:
 	pit.add_child(rmi)
 
 	var sign_lbl := Label3D.new()
-	sign_lbl.text = "🏁 СТАРТ • ГРАН-ПРІ ДОЛИНИ (3 КОЛА) 🏁"
+	sign_lbl.font = ConfigManager.get_ui_font()
+	sign_lbl.text = ConfigManager.t("sign_track")
 	sign_lbl.position = Vector3(0.0, 5.15, -5.0)
 	sign_lbl.pixel_size = 0.0085
 	sign_lbl.font_size = 48
@@ -634,7 +779,7 @@ func _build_pit_stop_station() -> void:
 	ics.shape = ibox
 	inter.add_child(ics)
 	inter.set_meta("interact_id", "race_start")
-	inter.set_meta("interact_title", "Старт гонки: 3-2-1 зі світлофором (3 кола)")
+	inter.set_meta("interact_title", ConfigManager.t("prop_race_start"))
 	pit.add_child(inter)
 
 
@@ -1161,10 +1306,10 @@ func _apply_shadow_settings() -> void:
 	var mode := GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadow_tier >= 1 else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	if is_instance_valid(_road_mesh_inst):
 		_road_mesh_inst.cast_shadow = mode
+	if is_instance_valid(_rail_mesh_inst):
+		_rail_mesh_inst.cast_shadow = mode
 	if is_instance_valid(_pillar_mm):
 		_pillar_mm.cast_shadow = mode
-	if is_instance_valid(_rail_mm):
-		_rail_mm.cast_shadow = mode
 	if is_instance_valid(_gantry_light):
 		_gantry_light.shadow_enabled = shadow_tier >= 2
 	for r in rivals:
@@ -1296,3 +1441,48 @@ func _process(delta: float) -> void:
 		r["lat"] = lerpf(float(r["lat"]), clampf(target_lat, -3.4, 3.4), clampf(delta * 2.5, 0.0, 1.0))
 
 		_sync_rival_transform(r, delta)
+
+
+func get_save_state() -> Dictionary:
+	var r_list: Array = []
+	for r in rivals:
+		r_list.append({
+			"s": float(r["s"]),
+			"progress_dist": float(r["progress_dist"]),
+			"lat": float(r["lat"]),
+			"base_lat": float(r["base_lat"]),
+			"cur_spd": float(r["cur_spd"]),
+			"lap": int(r["lap"]),
+			"finished": bool(r["finished"]),
+			"finish_time": float(r["finish_time"]),
+			"weave_phase": float(r["weave_phase"])
+		})
+	return {
+		"race_mode": _race_mode,
+		"player_progress_dist": player_progress_dist,
+		"race_elapsed": _race_elapsed,
+		"rivals": r_list
+	}
+
+
+func apply_save_state(st: Dictionary) -> void:
+	_race_mode = str(st.get("race_mode", "idle"))
+	player_progress_dist = float(st.get("player_progress_dist", 0.0))
+	_race_elapsed = float(st.get("race_elapsed", 0.0))
+	var r_list: Array = st.get("rivals", []) as Array
+	for i: int in range(mini(rivals.size(), r_list.size())):
+		var r: Dictionary = rivals[i]
+		var sv: Dictionary = r_list[i] as Dictionary
+		r["s"] = float(sv.get("s", r["s"]))
+		r["progress_dist"] = float(sv.get("progress_dist", r["progress_dist"]))
+		r["lat"] = float(sv.get("lat", r["lat"]))
+		r["base_lat"] = float(sv.get("base_lat", r["base_lat"]))
+		r["cur_spd"] = float(sv.get("cur_spd", r["cur_spd"]))
+		r["lap"] = int(sv.get("lap", r["lap"]))
+		r["finished"] = bool(sv.get("finished", false))
+		r["finish_time"] = float(sv.get("finish_time", 0.0))
+		r["weave_phase"] = float(sv.get("weave_phase", r["weave_phase"]))
+		_sync_rival_transform(r, 0.0)
+		var r_node: Node3D = r.get("node") as Node3D
+		if is_instance_valid(r_node):
+			r_node.reset_physics_interpolation()

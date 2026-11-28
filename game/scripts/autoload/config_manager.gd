@@ -2,6 +2,25 @@ extends Node
 
 signal graphics_changed
 signal display_changed
+signal language_changed
+
+const _LATIN_FOLD_GROUPS := [
+	["áàâäãåăắằẳẵặấầẩẫậąảạ", "a"],
+	["çćč", "c"],
+	["ďđ", "d"],
+	["éèêëěėęẹẻẽềếểễệ", "e"],
+	["ğ", "g"],
+	["íìîïıįỉĩị", "i"],
+	["ł", "l"],
+	["ńñň", "n"],
+	["óòôöõőơớờởỡợốồổỗộỏọ", "o"],
+	["ŕř", "r"],
+	["śšşș", "s"],
+	["ťț", "t"],
+	["úùûüůűưứừửữựủũụ", "u"],
+	["ýÿỳỷỹỵ", "y"],
+	["źżž", "z"]
+]
 
 const PRESET_NAMES: Array[String] = [
 	"Мінімальна (Слабкий ПК)",
@@ -49,6 +68,14 @@ const WEATHER_MODE_NAMES: Array[String] = [
 	"Гроза"
 ]
 
+const TIME_MODE_NAMES: Array[String] = [
+	"Авто (Цикл доби)",
+	"Ранок (06:00)",
+	"День (13:00)",
+	"Захід (19:35)",
+	"Ніч (23:30)"
+]
+
 const RESOLUTIONS: Array[Vector2i] = [
 	Vector2i(1280, 720),
 	Vector2i(1366, 768),
@@ -63,14 +90,16 @@ var graphics: Dictionary = {
 	"render_scale": 1.0,
 	"antialiasing": 3,
 	"shadows": 3,
-	"sdfgi": true,
+	"sdfgi": false,
 	"ssao": true,
 	"ssr": true,
 	"volumetric_fog": true,
 	"glow": true,
 	"foliage_density": 1.0,
 	"view_distance": 1.0,
-	"weather_mode": 0
+	"weather_mode": 0,
+	"day_time_mode": 0,
+	"day_duration_min": 28.0
 }
 
 var display: Dictionary = {
@@ -78,17 +107,157 @@ var display: Dictionary = {
 	"height": 1080,
 	"window_mode": 0,
 	"vsync": 1,
-	"max_fps": 0
+	"max_fps": 0,
+	"show_fps": false,
+	"language": "en"
 }
 
 var audio: Dictionary = {
 	"master_volume": 0.8
 }
 
+var _ui_font: FontVariation
+var _languages: Array[Dictionary] = []
+var _strings: Dictionary = {}
+var _fallback_strings: Dictionary = {}
+
 
 func _ready() -> void:
+	_init_ui_font()
+	load_available_languages()
 	load_config()
+	set_language(str(display.get("language", "en")), false)
 	apply_all()
+
+
+func _init_ui_font() -> void:
+	var fallbacks: Array[Font] = []
+	for fname: String in [
+		"Segoe UI", "Microsoft YaHei", "Yu Gothic UI", "Malgun Gothic",
+		"Nirmala UI", "Leelawadee UI", "Arial", "Tahoma",
+		"Noto Sans", "Noto Sans CJK SC", "Noto Sans Arabic", "Noto Sans Devanagari", "DejaVu Sans"
+	]:
+		var sf := SystemFont.new()
+		sf.font_names = PackedStringArray([fname])
+		fallbacks.append(sf)
+	_ui_font = FontVariation.new()
+	_ui_font.base_font = ThemeDB.fallback_font
+	_ui_font.fallbacks = fallbacks
+	var def_theme := ThemeDB.get_default_theme()
+	if def_theme:
+		def_theme.default_font = _ui_font
+
+
+func get_ui_font() -> Font:
+	return _ui_font if _ui_font else ThemeDB.fallback_font
+
+
+func get_lang_dir() -> String:
+	var res_dir := ProjectSettings.globalize_path("res://lang")
+	if not OS.has_feature("standalone"):
+		return res_dir
+	var exe_dir := OS.get_executable_path().get_base_dir().path_join("lang")
+	if DirAccess.dir_exists_absolute(exe_dir):
+		return exe_dir
+	return "res://lang"
+
+
+static func _lang_sort_key(s: String) -> String:
+	var low := s.to_lower()
+	var out := ""
+	for i in range(low.length()):
+		var ch := low.substr(i, 1)
+		var mapped := ch
+		for grp in _LATIN_FOLD_GROUPS:
+			if str(grp[0]).find(ch) >= 0:
+				mapped = str(grp[1])
+				break
+		out += mapped
+	return out + "|" + low
+
+
+func load_available_languages() -> void:
+	_languages.clear()
+	_fallback_strings.clear()
+	var lang_dir := get_lang_dir()
+	var da := DirAccess.open(lang_dir)
+	if da == null and lang_dir != "res://lang":
+		lang_dir = "res://lang"
+		da = DirAccess.open(lang_dir)
+	if da == null:
+		return
+	da.list_dir_begin()
+	while true:
+		var fname := da.get_next()
+		if fname == "":
+			break
+		if da.current_is_dir() or fname.begins_with(".") or not fname.to_lower().ends_with(".cfg"):
+			continue
+		var fpath := lang_dir.path_join(fname)
+		var cfg := ConfigFile.new()
+		if cfg.load(fpath) != OK:
+			continue
+		var code := str(cfg.get_value("meta", "code", fname.get_basename())).strip_edges().to_lower()
+		var native_name := str(cfg.get_value("meta", "native_name", code)).strip_edges()
+		if code == "" or native_name == "":
+			continue
+		if code == "en" and cfg.has_section("strings"):
+			for k in cfg.get_section_keys("strings"):
+				_fallback_strings[k] = str(cfg.get_value("strings", k, ""))
+		_languages.append({
+			"code": code,
+			"name": native_name,
+			"path": fpath,
+			"sort_key": _lang_sort_key(native_name)
+		})
+	da.list_dir_end()
+	_languages.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return str(a["sort_key"]).nocasecmp_to(str(b["sort_key"])) < 0
+	)
+
+
+func get_languages() -> Array[Dictionary]:
+	return _languages
+
+
+func get_current_language() -> String:
+	return str(display.get("language", "en"))
+
+
+func set_language(lang_code: String, save_to_cfg: bool = true) -> void:
+	if _languages.is_empty():
+		load_available_languages()
+	var target := lang_code.strip_edges().to_lower()
+	var picked: Dictionary = {}
+	var en_fallback: Dictionary = {}
+	for item in _languages:
+		if str(item["code"]) == target:
+			picked = item
+			break
+		if str(item["code"]) == "en":
+			en_fallback = item
+	if picked.is_empty():
+		picked = en_fallback if not en_fallback.is_empty() else (_languages[0] if not _languages.is_empty() else {})
+	_strings.clear()
+	if not picked.is_empty():
+		display["language"] = str(picked["code"])
+		var cfg := ConfigFile.new()
+		if cfg.load(str(picked["path"])) == OK and cfg.has_section("strings"):
+			for k in cfg.get_section_keys("strings"):
+				_strings[k] = str(cfg.get_value("strings", k, ""))
+	else:
+		display["language"] = "en"
+	if save_to_cfg:
+		save_config()
+	language_changed.emit()
+
+
+func t(key: String, default_text: String = "") -> String:
+	if _strings.has(key):
+		return str(_strings[key])
+	if _fallback_strings.has(key):
+		return str(_fallback_strings[key])
+	return default_text if default_text != "" else key
 
 
 func get_config_path() -> String:
@@ -99,6 +268,49 @@ func get_config_path() -> String:
 	if FileAccess.file_exists(exe_cfg):
 		return exe_cfg
 	return "user://config.cfg"
+
+
+func get_save_path() -> String:
+	return get_config_path().get_base_dir().path_join("savegame.cfg")
+
+
+func has_save() -> bool:
+	return FileAccess.file_exists(get_save_path())
+
+
+func get_save_timestamp() -> String:
+	var cfg := ConfigFile.new()
+	if cfg.load(get_save_path()) != OK:
+		return ""
+	return str(cfg.get_value("meta", "saved_at", ""))
+
+
+func save_game_state(data: Dictionary) -> int:
+	var cfg := ConfigFile.new()
+	cfg.set_value("meta", "version", 1)
+	cfg.set_value("meta", "saved_at", Time.get_datetime_string_from_system(false, true))
+	for sec_name in data.keys():
+		var sec = data[sec_name]
+		if sec is Dictionary:
+			for k in (sec as Dictionary).keys():
+				cfg.set_value(str(sec_name), str(k), sec[k])
+	return cfg.save(get_save_path())
+
+
+func load_game_state() -> Dictionary:
+	var path := get_save_path()
+	if not FileAccess.file_exists(path):
+		return {}
+	var cfg := ConfigFile.new()
+	if cfg.load(path) != OK:
+		return {}
+	var out: Dictionary = {}
+	for sec_name in cfg.get_sections():
+		var sec_dict: Dictionary = {}
+		for k in cfg.get_section_keys(sec_name):
+			sec_dict[k] = cfg.get_value(sec_name, k)
+		out[sec_name] = sec_dict
+	return out
 
 
 func load_config() -> void:
@@ -119,14 +331,16 @@ func load_config() -> void:
 
 
 func save_config() -> void:
+	var path := get_config_path()
 	var cfg := ConfigFile.new()
+	if FileAccess.file_exists(path):
+		cfg.load(path)
 	for key in graphics.keys():
 		cfg.set_value("graphics", key, graphics[key])
 	for key in display.keys():
 		cfg.set_value("display", key, display[key])
 	for key in audio.keys():
 		cfg.set_value("audio", key, audio[key])
-	var path := get_config_path()
 	var err := cfg.save(path)
 	if err != OK and path != "user://config.cfg":
 		cfg.save("user://config.cfg")

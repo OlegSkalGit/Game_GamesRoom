@@ -32,6 +32,7 @@ var _rock_mms: Array[MultiMeshInstance3D] = []
 var _reed_mm: MultiMeshInstance3D
 var _tree_mms: Array[MultiMeshInstance3D] = []
 var _weather_orb: MeshInstance3D
+var _road_bulb_mat: StandardMaterial3D
 var _track_spatial: Dictionary = {}
 var _baked_track_heights: PackedFloat32Array = PackedFloat32Array()
 
@@ -70,6 +71,7 @@ func build_world(player: Node3D) -> void:
 	weather.name = "WeatherController"
 	add_child(weather)
 	weather.setup(sky3d, _water_mat, _foliage_mats, player)
+	weather.bind_world_lights(ferris_wheel, casino_room, _road_bulb_mat)
 
 	wildlife = WildlifeController.new()
 	wildlife.name = "WildlifeController"
@@ -78,6 +80,23 @@ func build_world(player: Node3D) -> void:
 
 	ConfigManager.graphics_changed.connect(_apply_graphics_settings)
 	_apply_graphics_settings()
+
+
+func set_world_focus(target: Node3D, snap_now: bool = false) -> void:
+	if target == null:
+		return
+	if terrain:
+		if terrain.clipmap_target != target:
+			terrain.clipmap_target = target
+		if terrain.collision_target != target:
+			terrain.collision_target = target
+		if snap_now and terrain.has_method(&"snap"):
+			terrain.call(&"snap")
+	if weather:
+		weather.player_node = target
+	var sg_singleton := get_node_or_null("/root/SimpleGrass")
+	if sg_singleton:
+		sg_singleton.call("set_player_position", target.global_position)
 
 
 func _init_noises() -> void:
@@ -901,7 +920,8 @@ func _build_cobblestone_and_trails() -> void:
 	var steps := 92
 	var road_half_w := 2.3
 	var lantern_mat := StandardMaterial3D.new(); lantern_mat.albedo_color = Color(0.18, 0.17, 0.16); lantern_mat.metallic = 0.65
-	var glow_bulb := StandardMaterial3D.new(); glow_bulb.albedo_color = Color(1.0, 0.86, 0.50); glow_bulb.emission_enabled = true; glow_bulb.emission = Color(1.0, 0.78, 0.35); glow_bulb.emission_energy_multiplier = 2.2
+	_road_bulb_mat = StandardMaterial3D.new(); _road_bulb_mat.albedo_color = Color(1.0, 0.86, 0.50); _road_bulb_mat.emission_enabled = true; _road_bulb_mat.emission = Color(1.0, 0.78, 0.35); _road_bulb_mat.emission_energy_multiplier = 0.0
+	var glow_bulb := _road_bulb_mat
 	var rng := RandomNumberGenerator.new(); rng.seed = 4421
 
 	for i: int in range(steps):

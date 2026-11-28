@@ -16,6 +16,8 @@ var _panel: PanelContainer
 var _bank_lbl: Label
 var _status_lbl: Label
 var _hist_lbl: Label
+var _chip_lbl: Label
+var _hint_lbl: Label
 var _chip_val: int = 25
 var _chip_btns: Array[Button] = []
 var _bet_btns: Dictionary = {}
@@ -38,8 +40,8 @@ static func is_red(n: int) -> bool:
 
 static func pocket_color_tag(n: int) -> String:
 	if n == 0:
-		return "🟢 0 ЗЕРО"
-	return ("🔴 %d Червоне" if is_red(n) else "⚫ %d Чорне") % n
+		return ConfigManager.t("r_zero")
+	return (ConfigManager.t("r_red") if is_red(n) else ConfigManager.t("r_black")) % n
 
 
 static func compute_payout(bets: Dictionary, win_n: int) -> int:
@@ -78,6 +80,7 @@ func _ready() -> void:
 	layer = 35
 	visible = false
 	_build_ui()
+	ConfigManager.language_changed.connect(_refresh_language)
 
 
 func _build_ui() -> void:
@@ -134,9 +137,9 @@ func _build_ui() -> void:
 	ctrl_h.add_theme_constant_override("separation", 8)
 	main_v.add_child(ctrl_h)
 
-	var chip_lbl := Label.new(); chip_lbl.text = "Фішка:"
-	chip_lbl.add_theme_font_size_override("font_size", 14)
-	ctrl_h.add_child(chip_lbl)
+	_chip_lbl = Label.new(); _chip_lbl.text = ConfigManager.t("r_chip")
+	_chip_lbl.add_theme_font_size_override("font_size", 14)
+	ctrl_h.add_child(_chip_lbl)
 	for cv in CHIP_VALS:
 		var cb := Button.new(); cb.text = str(cv)
 		cb.focus_mode = Control.FOCUS_NONE
@@ -156,17 +159,17 @@ func _build_ui() -> void:
 	_hist_lbl.add_theme_color_override("font_color", Color(0.84, 0.90, 0.86))
 	ctrl_h.add_child(_hist_lbl)
 
-	_rebet_btn = Button.new(); _rebet_btn.text = "Повтор"
+	_rebet_btn = Button.new(); _rebet_btn.text = ConfigManager.t("r_rebet")
 	_rebet_btn.focus_mode = Control.FOCUS_NONE
 	_rebet_btn.pressed.connect(_on_rebet)
 	ctrl_h.add_child(_rebet_btn)
 
-	_clear_btn = Button.new(); _clear_btn.text = "Очистити"
+	_clear_btn = Button.new(); _clear_btn.text = ConfigManager.t("r_clear")
 	_clear_btn.focus_mode = Control.FOCUS_NONE
 	_clear_btn.pressed.connect(_on_clear)
 	ctrl_h.add_child(_clear_btn)
 
-	_exit_btn = Button.new(); _exit_btn.text = "Встати [Esc]"
+	_exit_btn = Button.new(); _exit_btn.text = ConfigManager.t("r_leave")
 	_exit_btn.focus_mode = Control.FOCUS_NONE
 	_exit_btn.pressed.connect(func():
 		AudioSfx.play_ui_click()
@@ -207,10 +210,10 @@ func _build_ui() -> void:
 		["d2", "13-24 (×3)", Color(0.12, 0.26, 0.19)],
 		["d3", "25-36 (×3)", Color(0.12, 0.26, 0.19)],
 		["low", "1-18", Color(0.14, 0.22, 0.28)],
-		["even", "ПАРНІ", Color(0.14, 0.22, 0.28)],
-		["red", "ЧЕРВОНЕ", Color(0.66, 0.13, 0.15)],
-		["black", "ЧОРНЕ", Color(0.12, 0.13, 0.16)],
-		["odd", "НЕПАРНІ", Color(0.14, 0.22, 0.28)],
+		["even", ConfigManager.t("r_even"), Color(0.14, 0.22, 0.28)],
+		["red", ConfigManager.t("r_red_btn"), Color(0.66, 0.13, 0.15)],
+		["black", ConfigManager.t("r_black_btn"), Color(0.12, 0.13, 0.16)],
+		["odd", ConfigManager.t("r_odd"), Color(0.14, 0.22, 0.28)],
 		["high", "19-36", Color(0.14, 0.22, 0.28)]
 	]:
 		var b := _make_bet_btn(str(spec[0]), str(spec[1]), spec[2] as Color)
@@ -223,13 +226,13 @@ func _build_ui() -> void:
 	launch_h.add_theme_constant_override("separation", 12)
 	main_v.add_child(launch_h)
 
-	var hint_lbl := Label.new()
-	hint_lbl.text = "Клік по полю додає фішку  •  Запуск: кнопка справа або [Пробіл] / [Enter]  •  Вихід: [Esc]"
-	hint_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hint_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	hint_lbl.add_theme_font_size_override("font_size", 13)
-	hint_lbl.add_theme_color_override("font_color", Color(0.84, 0.90, 0.80))
-	launch_h.add_child(hint_lbl)
+	_hint_lbl = Label.new()
+	_hint_lbl.text = ConfigManager.t("r_hint")
+	_hint_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_hint_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_hint_lbl.add_theme_font_size_override("font_size", 13)
+	_hint_lbl.add_theme_color_override("font_color", Color(0.84, 0.90, 0.80))
+	launch_h.add_child(_hint_lbl)
 
 	_spin_sb_ready = StyleBoxFlat.new()
 	_spin_sb_ready.bg_color = Color(0.10, 0.56, 0.26)
@@ -242,7 +245,7 @@ func _build_ui() -> void:
 	_spin_sb_idle.set_border_width_all(1); _spin_sb_idle.set_corner_radius_all(6)
 
 	_spin_btn = Button.new()
-	_spin_btn.text = "🎡 ОБЕРІТЬ СТАВКУ НА ПОЛІ ВИЩЕ"
+	_spin_btn.text = ConfigManager.t("r_spin_need")
 	_spin_btn.focus_mode = Control.FOCUS_NONE
 	_spin_btn.custom_minimum_size = Vector2(390, 40)
 	_spin_btn.add_theme_font_size_override("font_size", 15)
@@ -268,11 +271,26 @@ func _make_bet_btn(key: String, label: String, base_col: Color) -> Button:
 	return b
 
 
+func _refresh_language() -> void:
+	if _chip_lbl: _chip_lbl.text = ConfigManager.t("r_chip")
+	if _rebet_btn: _rebet_btn.text = ConfigManager.t("r_rebet")
+	if _clear_btn: _clear_btn.text = ConfigManager.t("r_clear")
+	if _exit_btn: _exit_btn.text = ConfigManager.t("r_leave")
+	if _hint_lbl: _hint_lbl.text = ConfigManager.t("r_hint")
+	var dyn_keys := {"even": "r_even", "red": "r_red_btn", "black": "r_black_btn", "odd": "r_odd"}
+	for k in dyn_keys.keys():
+		if _bet_btns.has(k):
+			_bet_btns[k].set_meta("base_label", ConfigManager.t(dyn_keys[k]))
+	if not _spinning and _bets.is_empty():
+		_status_lbl.text = ConfigManager.t("r_open_status")
+	_refresh_texts()
+
+
 func open(chips_balance: int) -> void:
 	_chips_ref = chips_balance
 	_spinning = false
 	_bets.clear()
-	_status_lbl.text = "1) Оберіть фішку та натисніть на поля столу  |  2) Тисніть «ЗАПУСТИТИ РУЛЕТКУ», [Пробіл] або [Enter]"
+	_status_lbl.text = ConfigManager.t("r_open_status")
 	visible = true
 	_refresh_texts()
 
@@ -294,12 +312,12 @@ func _place_bet(key: String) -> void:
 	var avail := _chips_ref - total_bet()
 	if avail <= 0:
 		AudioSfx.play_brick_bump()
-		_status_lbl.text = "Недостатньо фішок! Натисніть «▶ ЗАПУСТИТИ РУЛЕТКУ» або «Очистити»."
+		_status_lbl.text = ConfigManager.t("r_no_chips")
 		return
 	var add := mini(_chip_val, avail)
 	_bets[key] = int(_bets.get(key, 0)) + add
 	AudioSfx.play_ui_click()
-	_status_lbl.text = "Ставка: %d фішок! Тисніть зелену кнопку «▶ ЗАПУСТИТИ РУЛЕТКУ» або [Пробіл] / [Enter]!" % total_bet()
+	_status_lbl.text = ConfigManager.t("r_bet_status") % total_bet()
 	_refresh_texts()
 	bet_placed.emit(total_bet())
 
@@ -309,7 +327,7 @@ func _on_clear() -> void:
 		return
 	_bets.clear()
 	AudioSfx.play_ui_click()
-	_status_lbl.text = "Ставки очищено. Натисніть на числа чи поля нижче для нової ставки!"
+	_status_lbl.text = ConfigManager.t("r_cleared")
 	_refresh_texts()
 	bet_placed.emit(0)
 
@@ -322,12 +340,12 @@ func _on_rebet() -> void:
 	for k in _last_bets.keys():
 		needed += int(_last_bets[k])
 	if needed > _chips_ref:
-		_status_lbl.text = "Замало фішок для повтору минулої ставки!"
+		_status_lbl.text = ConfigManager.t("r_rebet_low")
 		AudioSfx.play_brick_bump()
 		return
 	_bets = _last_bets.duplicate()
 	AudioSfx.play_ui_click()
-	_status_lbl.text = "Повтор ставки (%d фішок)! Тисніть «▶ ЗАПУСТИТИ РУЛЕТКУ» або [Пробіл] / [Enter]!" % total_bet()
+	_status_lbl.text = ConfigManager.t("r_rebet_ok") % total_bet()
 	_refresh_texts()
 	bet_placed.emit(total_bet())
 
@@ -337,11 +355,11 @@ func _on_spin() -> void:
 		return
 	if _bets.is_empty():
 		AudioSfx.play_brick_bump()
-		_status_lbl.text = "Спочатку поставте хоча б одну фішку на число чи поле нижче!"
+		_status_lbl.text = ConfigManager.t("r_need_bet")
 		return
 	_spinning = true
 	_last_bets = _bets.duplicate()
-	_status_lbl.text = "🎡 Кулька побігла по ободу 3D-рулетки... Чекаємо виграшний сектор!"
+	_status_lbl.text = ConfigManager.t("r_spinning_status")
 	_refresh_texts()
 	spin_requested.emit(_bets.duplicate())
 
@@ -355,9 +373,9 @@ func on_spin_result(win_n: int, payout: int, new_balance: int) -> void:
 		_history.pop_back()
 	var tag := pocket_color_tag(win_n)
 	if payout > 0:
-		_status_lbl.text = "Випало %s! ВИГРАШ +%d фішок (ставка %d)  •  Зробіть нову ставку або «Повтор»" % [tag, payout, staked]
+		_status_lbl.text = ConfigManager.t("r_win_status") % [tag, payout, staked]
 	else:
-		_status_lbl.text = "Випало %s. Наступного разу пощастить!  •  Поставте знову або тисніть «Повтор»" % tag
+		_status_lbl.text = ConfigManager.t("r_lose_status") % tag
 	_bets.clear()
 	_refresh_texts()
 	bet_placed.emit(0)
@@ -365,7 +383,7 @@ func on_spin_result(win_n: int, payout: int, new_balance: int) -> void:
 
 func _refresh_texts() -> void:
 	var tb := total_bet()
-	_bank_lbl.text = "🎰 3D РУЛЕТКА  |  Вільні фішки: %d  |  На столі: %d  |  Обрано фішку: %d" % [_chips_ref - tb, tb, _chip_val]
+	_bank_lbl.text = ConfigManager.t("r_bank") % [_chips_ref - tb, tb, _chip_val]
 	for i in range(CHIP_VALS.size()):
 		var b := _chip_btns[i]
 		b.text = ("[%d]" if CHIP_VALS[i] == _chip_val else "%d") % CHIP_VALS[i]
@@ -376,17 +394,17 @@ func _refresh_texts() -> void:
 		var amt := int(_bets.get(k, 0))
 		btn.text = "%s\n(%d)" % [base, amt] if amt > 0 else base
 	if _spinning:
-		_spin_btn.text = "🎡 РУЛЕТКА КРУТИТЬСЯ..."
+		_spin_btn.text = ConfigManager.t("r_spin_busy")
 		_spin_btn.disabled = true
 		_spin_btn.add_theme_stylebox_override("normal", _spin_sb_idle)
 		_spin_btn.add_theme_stylebox_override("hover", _spin_sb_idle)
 	elif tb > 0:
-		_spin_btn.text = "▶ ЗАПУСТИТИ РУЛЕТКУ (%d) [Пробіл / Enter]" % tb
+		_spin_btn.text = ConfigManager.t("r_spin_ready") % tb
 		_spin_btn.disabled = false
 		_spin_btn.add_theme_stylebox_override("normal", _spin_sb_ready)
 		_spin_btn.add_theme_stylebox_override("hover", _spin_sb_ready)
 	else:
-		_spin_btn.text = "🎡 СПОЧАТКУ ПОСТАВТЕ ФІШКУ НА ПОЛЕ"
+		_spin_btn.text = ConfigManager.t("r_spin_need")
 		_spin_btn.disabled = false
 		_spin_btn.add_theme_stylebox_override("normal", _spin_sb_idle)
 		_spin_btn.add_theme_stylebox_override("hover", _spin_sb_idle)
@@ -396,7 +414,7 @@ func _refresh_texts() -> void:
 	var h_parts: Array[String] = []
 	for hn in _history:
 		h_parts.append(pocket_color_tag(hn))
-	_hist_lbl.text = "Історія: " + ("  |  ".join(h_parts) if not h_parts.is_empty() else "—")
+	_hist_lbl.text = "📜 " + ("  |  ".join(h_parts) if not h_parts.is_empty() else "—")
 
 
 func handle_key(phys_key: int) -> bool:

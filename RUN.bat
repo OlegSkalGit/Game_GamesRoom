@@ -8,7 +8,7 @@ set "GAME_DIR=%ROOT%game"
 set "ASSETS_DIR=%GAME_DIR%\assets"
 set "GODOT_DIR=%ROOT%godot"
 set "TMP_DIR=%ROOT%_setup_tmp"
-set "MODE_FILE=%ROOT%.run_mode"
+set "CFG_FILE=%GAME_DIR%\config.cfg"
 
 set "REPO_ZIP_URL=https://github.com/OlegSkalGit/Game_GamesRoom/archive/refs/heads/main.zip"
 set "GODOT_VER=4.7.2-stable"
@@ -34,9 +34,16 @@ rem ============================================================
 for %%F in (
     "project.godot"
     "splash.png"
+    "lang\en.cfg"
+    "lang\uk.cfg"
     "scenes\main.tscn"
     "scenes\self_check.tscn"
     "scripts\main.gd"
+    "scripts\autoload\config_manager.gd"
+    "scripts\ui\main_menu.gd"
+    "scripts\player\race_car.gd"
+    "scripts\world\casino_room.gd"
+    "scripts\world\race_track.gd"
     "scripts\world\ferris_wheel.gd"
     "scripts\ui\roulette_overlay.gd"
     "scripts\minigames\games\game_python3d.gd"
@@ -44,6 +51,9 @@ for %%F in (
     "assets\textures\python3d\ground_quantum.png"
 ) do (
     if not exist "%GAME_DIR%\%%~F" set "NEED_REPO=1"
+)
+for %%L in (ar bn de el en es fa fr gu hi id it ja ko mr ms nl pl pt ro ru sw ta te th tl tr uk ur vi zh) do (
+    if not exist "%GAME_DIR%\lang\%%L.cfg" set "NEED_REPO=1"
 )
 
 if "%NEED_REPO%"=="1" call :FETCH_REPO
@@ -121,14 +131,11 @@ rem 6. Interactive Launcher Menu (DX12 / Vulkan / OpenGL 3)
 rem    5s auto-launch timer, defaults to last selected mode
 rem ============================================================
 :MENU
-set "DEF_MODE=1"
-if exist "%MODE_FILE%" set /p DEF_MODE=<"%MODE_FILE%"
-set "DEF_MODE=%DEF_MODE: =%"
-if not "%DEF_MODE%"=="1" if not "%DEF_MODE%"=="2" if not "%DEF_MODE%"=="3" set "DEF_MODE=1"
+call :GET_DEF_MODE
 set /a INIT_IDX=%DEF_MODE%-1
 
 cls
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference='SilentlyContinue'; $ErrorActionPreference='Stop'; try{[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false)}catch{}; $items=@('DirectX 12 (Forward+)','Vulkan (Forward+)','OpenGL 3 (Сумісність)'); $idx=[int]%INIT_IDX%; $timerOn=$true; $deadline=[DateTime]::UtcNow.AddSeconds(5); $lastKey=''; $startTop=0; try{[Console]::CursorVisible=$false; $startTop=[Console]::CursorTop}catch{}; try{while($true){$sec=0; if($timerOn){$sec=[int][Math]::Ceiling(($deadline-[DateTime]::UtcNow).TotalSeconds); if($sec -le 0){exit (10+$idx)}}; $stateKey=\"$idx|$timerOn|$sec\"; if($stateKey -ne $lastKey){$lastKey=$stateKey; try{[Console]::SetCursorPosition(0,$startTop)}catch{}; Write-Host '======================================================' -ForegroundColor DarkYellow; Write-Host '   ЛІСОВЕ КАЗИНО - ОБЕРІТЬ РЕЖИМ ЗАПУСКУ' -ForegroundColor Yellow; Write-Host '======================================================' -ForegroundColor DarkYellow; Write-Host ''; for($i=0;$i -lt $items.Count;$i++){$line=('  '+($i+1)+'. '+$items[$i]).PadRight(48); if($i -eq $idx){Write-Host ('> '+$line.TrimStart()) -ForegroundColor Black -BackgroundColor Green}else{Write-Host $line -ForegroundColor Gray}}; Write-Host ''; if($timerOn){Write-Host (\"  Автозапуск через $sec с...                          \") -ForegroundColor Green}else{Write-Host '  Таймер зупинено — оберіть режим і натисніть [Enter]' -ForegroundColor DarkYellow}; Write-Host '  [Стрілки Вгору/Вниз] або [1-3] - вибір              ' -ForegroundColor DarkCyan; Write-Host '  [Enter] - запуск  |  [Esc] - вихід                  ' -ForegroundColor DarkCyan}; $hasKey=$false; try{$hasKey=[Console]::KeyAvailable}catch{exit 99}; if($hasKey){$k=[Console]::ReadKey($true); switch($k.Key){'UpArrow'{$timerOn=$false; if($idx -le 0){$idx=$items.Count-1}else{$idx--}} 'W'{$timerOn=$false; if($idx -le 0){$idx=$items.Count-1}else{$idx--}} 'DownArrow'{$timerOn=$false; if($idx -ge $items.Count-1){$idx=0}else{$idx++}} 'S'{$timerOn=$false; if($idx -ge $items.Count-1){$idx=0}else{$idx++}} 'D1'{exit 10} 'NumPad1'{exit 10} 'D2'{exit 11} 'NumPad2'{exit 11} 'D3'{exit 12} 'NumPad3'{exit 12} 'Enter'{exit (10+$idx)} 'Spacebar'{exit (10+$idx)} 'Escape'{exit 0} default{$timerOn=$false}}}; Start-Sleep -Milliseconds 60}}finally{try{[Console]::CursorVisible=$true}catch{}}"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference='SilentlyContinue'; $ErrorActionPreference='Stop'; try{[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false)}catch{}; $items=@('DirectX 12 (Forward+)','Vulkan (Forward+)','OpenGL 3 (Сумісність)'); $idx=[int]%INIT_IDX%; $timerOn=$true; $deadline=[DateTime]::UtcNow.AddSeconds(5); $lastKey=''; $startTop=0; try{[Console]::CursorVisible=$false; $startTop=[Console]::CursorTop}catch{}; try{while($true){$sec=0; if($timerOn){$sec=[int][Math]::Ceiling(($deadline-[DateTime]::UtcNow).TotalSeconds); if($sec -le 0){exit (10+$idx)}}; $stateKey=\"$idx|$timerOn|$sec\"; if($stateKey -ne $lastKey){$lastKey=$stateKey; try{[Console]::SetCursorPosition(0,$startTop)}catch{}; Write-Host '======================================================' -ForegroundColor DarkYellow; Write-Host '   ДІМ ІГОР / ЛІСОВЕ КАЗИНО - ОБЕРІТЬ РЕЖИМ ЗАПУСКУ' -ForegroundColor Yellow; Write-Host '======================================================' -ForegroundColor DarkYellow; Write-Host ''; for($i=0;$i -lt $items.Count;$i++){$line=('  '+($i+1)+'. '+$items[$i]).PadRight(48); if($i -eq $idx){Write-Host ('> '+$line.TrimStart()) -ForegroundColor Black -BackgroundColor Green}else{Write-Host $line -ForegroundColor Gray}}; Write-Host ''; if($timerOn){Write-Host (\"  Автозапуск через $sec с...                          \") -ForegroundColor Green}else{Write-Host '  Таймер зупинено — оберіть режим і натисніть [Enter]' -ForegroundColor DarkYellow}; Write-Host '  [Стрілки Вгору/Вниз] або [1-3] - вибір              ' -ForegroundColor DarkCyan; Write-Host '  [Enter] - запуск  |  [Esc] - вихід                  ' -ForegroundColor DarkCyan}; $hasKey=$false; try{$hasKey=[Console]::KeyAvailable}catch{exit 99}; if($hasKey){$k=[Console]::ReadKey($true); switch($k.Key){'UpArrow'{$timerOn=$false; if($idx -le 0){$idx=$items.Count-1}else{$idx--}} 'W'{$timerOn=$false; if($idx -le 0){$idx=$items.Count-1}else{$idx--}} 'DownArrow'{$timerOn=$false; if($idx -ge $items.Count-1){$idx=0}else{$idx++}} 'S'{$timerOn=$false; if($idx -ge $items.Count-1){$idx=0}else{$idx++}} 'D1'{exit 10} 'NumPad1'{exit 10} 'D2'{exit 11} 'NumPad2'{exit 11} 'D3'{exit 12} 'NumPad3'{exit 12} 'Enter'{exit (10+$idx)} 'Spacebar'{exit (10+$idx)} 'Escape'{exit 0} default{$timerOn=$false}}}; Start-Sleep -Milliseconds 60}}finally{try{[Console]::CursorVisible=$true}catch{}}"
 set "RC=%ERRORLEVEL%"
 
 if "%RC%"=="10" goto :LAUNCH_DX12
@@ -139,7 +146,7 @@ if "%RC%"=="0" exit /b 0
 rem Classic cmd fallback if PowerShell console input is unavailable
 cls
 echo ======================================================
-echo    ЛІСОВЕ КАЗИНО - ОБЕРІТЬ РЕЖИМ ЗАПУСКУ
+echo    ДІМ ІГОР / ЛІСОВЕ КАЗИНО - ОБЕРІТЬ РЕЖИМ ЗАПУСКУ
 echo ======================================================
 echo.
 echo   1. DirectX 12 (Forward+)
@@ -155,17 +162,17 @@ if errorlevel 2 goto :LAUNCH_VULKAN
 goto :LAUNCH_DX12
 
 :LAUNCH_DX12
-> "%MODE_FILE%" echo 1
+call :SAVE_MODE 1
 start "" "%GODOT_EXE%" --path "%GAME_DIR%" --rendering-driver d3d12 --rendering-method forward_plus
 exit /b 0
 
 :LAUNCH_VULKAN
-> "%MODE_FILE%" echo 2
+call :SAVE_MODE 2
 start "" "%GODOT_EXE%" --path "%GAME_DIR%" --rendering-driver vulkan --rendering-method forward_plus
 exit /b 0
 
 :LAUNCH_OPENGL
-> "%MODE_FILE%" echo 3
+call :SAVE_MODE 3
 start "" "%GODOT_EXE%" --path "%GAME_DIR%" --rendering-driver opengl3 --rendering-method gl_compatibility
 exit /b 0
 
@@ -324,7 +331,7 @@ exit /b 0
 >> "%GAME_DIR%\config.cfg" echo render_scale=1.0
 >> "%GAME_DIR%\config.cfg" echo antialiasing=3
 >> "%GAME_DIR%\config.cfg" echo shadows=3
->> "%GAME_DIR%\config.cfg" echo sdfgi=true
+>> "%GAME_DIR%\config.cfg" echo sdfgi=false
 >> "%GAME_DIR%\config.cfg" echo ssao=true
 >> "%GAME_DIR%\config.cfg" echo ssr=true
 >> "%GAME_DIR%\config.cfg" echo volumetric_fog=true
@@ -332,6 +339,8 @@ exit /b 0
 >> "%GAME_DIR%\config.cfg" echo foliage_density=1.0
 >> "%GAME_DIR%\config.cfg" echo view_distance=1.0
 >> "%GAME_DIR%\config.cfg" echo weather_mode=0
+>> "%GAME_DIR%\config.cfg" echo day_time_mode=0
+>> "%GAME_DIR%\config.cfg" echo day_duration_min=28.0
 >> "%GAME_DIR%\config.cfg" echo.
 >> "%GAME_DIR%\config.cfg" echo [display]
 >> "%GAME_DIR%\config.cfg" echo width=1920
@@ -339,9 +348,92 @@ exit /b 0
 >> "%GAME_DIR%\config.cfg" echo window_mode=0
 >> "%GAME_DIR%\config.cfg" echo vsync=1
 >> "%GAME_DIR%\config.cfg" echo max_fps=0
+>> "%GAME_DIR%\config.cfg" echo show_fps=false
+>> "%GAME_DIR%\config.cfg" echo language="en"
 >> "%GAME_DIR%\config.cfg" echo.
 >> "%GAME_DIR%\config.cfg" echo [audio]
 >> "%GAME_DIR%\config.cfg" echo master_volume=0.8
+>> "%GAME_DIR%\config.cfg" echo.
+>> "%GAME_DIR%\config.cfg" echo [launcher]
+>> "%GAME_DIR%\config.cfg" echo renderer_mode=1
+exit /b 0
+
+:GET_DEF_MODE
+set "DEF_MODE=1"
+set "HAS_LAUNCHER_CFG=0"
+set "IN_LAUNCHER=0"
+if exist "%CFG_FILE%" for /f "usebackq tokens=1* delims==" %%A in ("%CFG_FILE%") do call :CFG_READ_LINE "%%~A" "%%~B"
+if "%HAS_LAUNCHER_CFG%"=="0" if exist "%ROOT%.run_mode" set /p DEF_MODE=<"%ROOT%.run_mode"
+set "DEF_MODE=%DEF_MODE: =%"
+if not "%DEF_MODE%"=="1" if not "%DEF_MODE%"=="2" if not "%DEF_MODE%"=="3" set "DEF_MODE=1"
+exit /b 0
+
+:CFG_READ_LINE
+set "K=%~1"
+set "K=%K: =%"
+if not "%K:~0,1%"=="[" goto :CFG_READ_KV
+if /i "%K%"=="[launcher]" (set "IN_LAUNCHER=1") else (set "IN_LAUNCHER=0")
+exit /b 0
+
+:CFG_READ_KV
+if "%IN_LAUNCHER%"=="1" if /i "%K%"=="renderer_mode" (
+    set "DEF_MODE=%~2"
+    set "HAS_LAUNCHER_CFG=1"
+)
+exit /b 0
+
+:SAVE_MODE
+if not exist "%CFG_FILE%" call :WRITE_DEFAULT_CONFIG
+setlocal EnableDelayedExpansion
+set "NEW_MODE=%~1"
+set "IN_L=0"
+set "WROTE_L=0"
+set "SAW_SEC=0"
+> "%CFG_FILE%.tmp" (
+    for /f "usebackq delims=" %%L in ("%CFG_FILE%") do (
+        set "LINE=%%L"
+        call :CFG_WRITE_LINE
+    )
+    call :CFG_FINISH_LAUNCHER
+)
+move /y "%CFG_FILE%.tmp" "%CFG_FILE%" >nul
+endlocal
+if exist "%ROOT%.run_mode" del /f /q "%ROOT%.run_mode" 2>nul
+exit /b 0
+
+:CFG_WRITE_LINE
+set "TRIM=!LINE: =!"
+if "!TRIM:~0,1!"=="[" (
+    if "!IN_L!"=="1" if "!WROTE_L!"=="0" (
+        echo renderer_mode=!NEW_MODE!
+        set "WROTE_L=1"
+    )
+    if "!SAW_SEC!"=="1" echo.
+    set "SAW_SEC=1"
+    if /i "!TRIM!"=="[launcher]" (set "IN_L=1") else (set "IN_L=0")
+    echo !LINE!
+    exit /b 0
+)
+if "!IN_L!"=="1" (
+    for /f "tokens=1 delims==" %%K in ("!TRIM!") do (
+        if /i "%%K"=="renderer_mode" (
+            echo renderer_mode=!NEW_MODE!
+            set "WROTE_L=1"
+            exit /b 0
+        )
+    )
+)
+echo !LINE!
+exit /b 0
+
+:CFG_FINISH_LAUNCHER
+if "!WROTE_L!"=="0" (
+    if "!IN_L!"=="0" (
+        if "!SAW_SEC!"=="1" echo.
+        echo [launcher]
+    )
+    echo renderer_mode=!NEW_MODE!
+)
 exit /b 0
 
 :NO_CURL

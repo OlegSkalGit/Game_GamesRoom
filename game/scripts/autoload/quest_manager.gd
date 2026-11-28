@@ -63,6 +63,14 @@ var quests: Array[Dictionary] = [
 ]
 
 
+func _quest_title(q: Dictionary) -> String:
+	return ConfigManager.t("q_%s_t" % q["id"], str(q["title"]))
+
+
+func _quest_desc(q: Dictionary) -> String:
+	return ConfigManager.t("q_%s_d" % q["id"], str(q["desc"]))
+
+
 func record_step(quest_id: String, step_key: String) -> bool:
 	for q in quests:
 		if str(q["id"]) != quest_id or bool(q["completed"]):
@@ -76,13 +84,14 @@ func record_step(quest_id: String, step_key: String) -> bool:
 		done_map[step_key] = true
 		var cnt := done_map.size()
 		var total := targets.size()
+		var q_title := _quest_title(q)
 		if cnt >= total:
 			q["completed"] = true
 			var rw := int(q["reward"])
 			chips += rw
-			quest_event.emit("✅ Квест виконано: «%s» (+%d фішок!)" % [q["title"], rw], true)
+			quest_event.emit(ConfigManager.t("q_toast_done") % [q_title, rw], true)
 		else:
-			quest_event.emit("📜 Прогрес квесту «%s»: %d/%d" % [q["title"], cnt, total], false)
+			quest_event.emit(ConfigManager.t("q_toast_prog") % [q_title, cnt, total], false)
 		state_changed.emit()
 		return true
 	return false
@@ -109,23 +118,49 @@ func get_completed_count() -> int:
 
 func get_hud_summary() -> String:
 	var done_n := get_completed_count()
-	var next_line := "Усі квести виконано!"
+	var next_line := ConfigManager.t("q_hud_done_all")
 	for q in quests:
 		if not bool(q["completed"]):
 			var d: Dictionary = q["done_steps"]
 			var t: Array = q["targets"]
-			next_line = "%s (%d/%d)" % [q["title"], d.size(), t.size()]
+			next_line = "%s (%d/%d)" % [_quest_title(q), d.size(), t.size()]
 			break
-	return "📜 Квести: %d/%d  |  Фішки: %d  |  [Q] Журнал\nНаст.: %s" % [done_n, quests.size(), chips, next_line]
+	return ConfigManager.t("q_hud_summary") % [done_n, quests.size(), chips, next_line]
 
 
 func format_journal_text() -> String:
 	var lines: Array[String] = []
-	lines.append("Зібрано фішок: %d   |   Виконано квестів: %d / %d\n" % [chips, get_completed_count(), quests.size()])
+	lines.append(ConfigManager.t("q_journal_header") % [chips, get_completed_count(), quests.size()])
+	var unit := ConfigManager.t("q_chips_unit")
 	for q in quests:
 		var done_m: Dictionary = q["done_steps"]
 		var t_arr: Array = q["targets"]
 		var icon := "✅" if bool(q["completed"]) else "🔸"
-		lines.append("%s %s  [%d/%d]  (+%d фішок)" % [icon, q["title"], done_m.size(), t_arr.size(), int(q["reward"])])
-		lines.append("    %s\n" % q["desc"])
+		lines.append("%s %s  [%d/%d]  (+%d %s)" % [icon, _quest_title(q), done_m.size(), t_arr.size(), int(q["reward"]), unit])
+		lines.append("    %s\n" % _quest_desc(q))
 	return "\n".join(lines)
+
+
+func get_save_state() -> Dictionary:
+	var q_map: Dictionary = {}
+	for q in quests:
+		q_map[str(q["id"])] = {
+			"done_steps": (q["done_steps"] as Dictionary).duplicate(true),
+			"completed": bool(q["completed"])
+		}
+	return {"chips": chips, "quests": q_map}
+
+
+func apply_save_state(st: Dictionary) -> void:
+	chips = int(st.get("chips", 0))
+	var q_map: Dictionary = st.get("quests", {}) as Dictionary
+	for q in quests:
+		var qid := str(q["id"])
+		if q_map.has(qid) and q_map[qid] is Dictionary:
+			var saved_q: Dictionary = q_map[qid]
+			q["done_steps"] = (saved_q.get("done_steps", {}) as Dictionary).duplicate(true)
+			q["completed"] = bool(saved_q.get("completed", false))
+		else:
+			q["done_steps"] = {}
+			q["completed"] = false
+	state_changed.emit()

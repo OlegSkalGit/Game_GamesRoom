@@ -49,12 +49,26 @@ var _btn_exit: Button
 var _viewport_container: SubViewportContainer
 var _subviewport: SubViewport
 var _active_game: MinigameBase
+var _active_game_id: String = ""
 
 
 func _ready() -> void:
 	layer = 40
 	visible = false
 	_build_ui()
+	ConfigManager.language_changed.connect(_refresh_language)
+
+
+func _refresh_language() -> void:
+	if _btn_restart:
+		_btn_restart.text = ConfigManager.t("mh_restart")
+	if _btn_exit:
+		_btn_exit.text = ConfigManager.t("mh_exit")
+	if _active_game:
+		var g_name := ConfigManager.t("g_" + _active_game_id, _active_game.get_game_title())
+		_title_lbl.text = ConfigManager.t("mh_title") % g_name
+		_score_lbl.text = ConfigManager.t("mh_score") % _active_game.score
+		_hint_lbl.text = _active_game.get_controls_hint()
 
 
 func _build_ui() -> void:
@@ -93,7 +107,7 @@ func _build_ui() -> void:
 	top_bar.add_child(_score_lbl)
 
 	_btn_restart = Button.new()
-	_btn_restart.text = "Заново (R)"
+	_btn_restart.text = ConfigManager.t("mh_restart")
 	_btn_restart.add_theme_font_size_override("font_size", 16)
 	_btn_restart.pressed.connect(func():
 		AudioSfx.play_ui_click()
@@ -103,7 +117,7 @@ func _build_ui() -> void:
 	top_bar.add_child(_btn_restart)
 
 	_btn_exit = Button.new()
-	_btn_exit.text = "Вийти (Esc)"
+	_btn_exit.text = ConfigManager.t("mh_exit")
 	_btn_exit.add_theme_font_size_override("font_size", 16)
 	var exit_sb := StyleBoxFlat.new()
 	exit_sb.bg_color = Color(0.55, 0.14, 0.14)
@@ -169,18 +183,20 @@ func open_game(game_id: String) -> bool:
 		return false
 
 	_active_game = inst
+	_active_game_id = game_id
 	_active_game.custom_minimum_size = MinigameBase.CANVAS_SIZE
 	_active_game.size = MinigameBase.CANVAS_SIZE
 	_subviewport.add_child(_active_game)
-	_active_game.score_changed.connect(func(s: int): _score_lbl.text = "Рахунок: %d" % s)
+	_active_game.score_changed.connect(func(s: int): _score_lbl.text = ConfigManager.t("mh_score") % s)
 	_active_game.status_changed.connect(func(t: String):
 		if t != "":
-			_score_lbl.text = "Рахунок: %d  |  %s" % [_active_game.score, t]
+			_score_lbl.text = ConfigManager.t("mh_score_status") % [_active_game.score, t]
 	)
 	_active_game.reset_game()
 
-	_title_lbl.text = "Картина: «%s»" % _active_game.get_game_title()
-	_score_lbl.text = "Рахунок: 0"
+	var g_name := ConfigManager.t("g_" + game_id, _active_game.get_game_title())
+	_title_lbl.text = ConfigManager.t("mh_title") % g_name
+	_score_lbl.text = ConfigManager.t("mh_score") % 0
 	_hint_lbl.text = _active_game.get_controls_hint()
 
 	visible = true

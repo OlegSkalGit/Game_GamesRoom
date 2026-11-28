@@ -12,6 +12,10 @@ var _angle: float = -PI * 0.5 # Start with cabin #0 right at the bottom boarding
 var _rotor: Node3D
 var _cabins: Array[Dictionary] = []
 var _bulb_mats: Array[StandardMaterial3D] = []
+var _cabin_lantern_mat: StandardMaterial3D
+var _hub_light: OmniLight3D
+var _is_dark: bool = false
+var _darkness: float = 0.0
 var _light_t: float = 0.0
 
 
@@ -107,16 +111,19 @@ func _build_structure() -> void:
 	var rim_mesh := BoxMesh.new(); rim_mesh.size = Vector3(0.18, rim_seg_len, 0.14)
 	var inner_seg_len := 2.0 * (WHEEL_RADIUS * 0.68) * sin(PI / 24.0) + 0.06
 	var inner_mesh := BoxMesh.new(); inner_mesh.size = Vector3(0.13, inner_seg_len, 0.11)
-	var bulb_mesh := SphereMesh.new(); bulb_mesh.radius = 0.14; bulb_mesh.height = 0.28
+	var bulb_mesh := SphereMesh.new(); bulb_mesh.radius = 0.19; bulb_mesh.height = 0.38
+	var inner_bulb_mesh := SphereMesh.new(); inner_bulb_mesh.radius = 0.14; inner_bulb_mesh.height = 0.28
 
 	var palette := [
-		Color(1.0, 0.85, 0.28),
-		Color(1.0, 0.34, 0.38),
-		Color(0.28, 0.86, 1.0),
-		Color(0.34, 0.96, 0.52)
+		Color(1.0, 0.85, 0.24),
+		Color(1.0, 0.28, 0.34),
+		Color(0.24, 0.88, 1.0),
+		Color(0.30, 0.98, 0.50),
+		Color(0.96, 0.42, 0.94),
+		Color(1.0, 0.62, 0.20)
 	]
-	for b_idx: int in range(4):
-		_bulb_mats.append(_mat(palette[b_idx], 0.2, 0.1, palette[b_idx], 1.75))
+	for b_idx: int in range(palette.size()):
+		_bulb_mats.append(_mat(palette[b_idx], 0.18, 0.08, palette[b_idx], 0.0))
 
 	for i: int in range(24):
 		var a := (float(i) + 0.5) * TAU / 24.0
@@ -124,9 +131,13 @@ func _build_structure() -> void:
 			_add_part(_rotor, rim_mesh, Vector3(cos(a) * WHEEL_RADIUS, sin(a) * WHEEL_RADIUS, rz), steel_mat, Vector3(0.0, 0.0, rad_to_deg(a)))
 			_add_part(_rotor, inner_mesh, Vector3(cos(a) * WHEEL_RADIUS * 0.68, sin(a) * WHEEL_RADIUS * 0.68, rz), red_steel, Vector3(0.0, 0.0, rad_to_deg(a)))
 		var ba := float(i) * TAU / 24.0
-		var bm: StandardMaterial3D = _bulb_mats[i % 4]
+		var bm: StandardMaterial3D = _bulb_mats[i % _bulb_mats.size()]
 		for bz: float in [-1.22, 1.22]:
 			_add_part(_rotor, bulb_mesh, Vector3(cos(ba) * WHEEL_RADIUS, sin(ba) * WHEEL_RADIUS, bz), bm)
+		if i % 2 == 0:
+			var bm_in: StandardMaterial3D = _bulb_mats[(i / 2 + 3) % _bulb_mats.size()]
+			for bz_in: float in [-1.19, 1.19]:
+				_add_part(_rotor, inner_bulb_mesh, Vector3(cos(ba) * WHEEL_RADIUS * 0.68, sin(ba) * WHEEL_RADIUS * 0.68, bz_in), bm_in)
 
 	var spoke_mesh := CylinderMesh.new(); spoke_mesh.top_radius = 0.055; spoke_mesh.bottom_radius = 0.055; spoke_mesh.height = WHEEL_RADIUS
 	var cross_mesh := CylinderMesh.new(); cross_mesh.top_radius = 0.065; cross_mesh.bottom_radius = 0.065; cross_mesh.height = 2.28
@@ -135,6 +146,15 @@ func _build_structure() -> void:
 		for sz: float in [-1.12, 1.12]:
 			_add_part(_rotor, spoke_mesh, Vector3(cos(ca) * WHEEL_RADIUS * 0.5, sin(ca) * WHEEL_RADIUS * 0.5, sz), steel_mat, Vector3(0.0, 0.0, rad_to_deg(ca) - 90.0))
 		_add_part(_rotor, cross_mesh, Vector3(cos(ca) * WHEEL_RADIUS, sin(ca) * WHEEL_RADIUS, 0.0), gold_mat, Vector3(90.0, 0.0, 0.0))
+
+	_hub_light = OmniLight3D.new()
+	_hub_light.position = Vector3(0.0, HUB_Y, 0.0)
+	_hub_light.light_color = Color(1.0, 0.84, 0.56)
+	_hub_light.light_energy = 0.0
+	_hub_light.omni_range = 24.0
+	_hub_light.shadow_enabled = false
+	_hub_light.visible = false
+	add_child(_hub_light)
 
 	# 4. 12 Walk-in Upright Gondola Cabins (AnimatableBody3D synchronized to physics!)
 	var cab_cols := [
@@ -145,7 +165,7 @@ func _build_structure() -> void:
 	]
 	var cab_floor_mat := _mat(Color(0.28, 0.22, 0.18), 0.72, 0.10)
 	var rod_mat := _mat(Color(0.84, 0.84, 0.86), 0.30, 0.75)
-	var lantern_mat := _mat(Color(1.0, 0.92, 0.64), 0.2, 0.0, Color(1.0, 0.88, 0.48), 1.45)
+	_cabin_lantern_mat = _mat(Color(1.0, 0.92, 0.64), 0.2, 0.0, Color(1.0, 0.88, 0.48), 0.0)
 
 	for ci: int in range(CABIN_COUNT):
 		var body := AnimatableBody3D.new()
@@ -194,9 +214,21 @@ func _build_structure() -> void:
 		var roof_m := BoxMesh.new(); roof_m.size = Vector3(1.56, 0.10, 1.66)
 		_add_part(body, roof_m, Vector3(0.0, HANGER_LEN - 0.10, 0.0), cmat)
 		var l_sph := SphereMesh.new(); l_sph.radius = 0.10; l_sph.height = 0.20
-		_add_part(body, l_sph, Vector3(0.0, HANGER_LEN - 0.22, 0.0), lantern_mat)
+		_add_part(body, l_sph, Vector3(0.0, HANGER_LEN - 0.22, 0.0), _cabin_lantern_mat)
 
 		_cabins.append({"body": body, "offset": float(ci) * TAU / float(CABIN_COUNT)})
+
+
+func set_darkness(active: bool, darkness: float = 1.0) -> void:
+	_is_dark = active
+	_darkness = clampf(darkness, 0.0, 1.0) if active else 0.0
+	if _cabin_lantern_mat:
+		_cabin_lantern_mat.emission_energy_multiplier = 1.65 * _darkness if _is_dark else 0.0
+	if is_instance_valid(_hub_light):
+		_hub_light.visible = _is_dark and _darkness > 0.01
+	if not _is_dark:
+		for bm: StandardMaterial3D in _bulb_mats:
+			bm.emission_energy_multiplier = 0.0
 
 
 func _physics_process(delta: float) -> void:
@@ -205,10 +237,31 @@ func _physics_process(delta: float) -> void:
 
 
 func _process(delta: float) -> void:
+	if not _is_dark or _darkness <= 0.01:
+		return
 	_light_t += delta
+	# Alternate marquee chase wave & festive twinkle bursts when dark (sunset/night)
+	var mode_mix := 0.5 + 0.5 * sin(_light_t * 0.45)
 	for bi: int in range(_bulb_mats.size()):
-		var phase := sin(_light_t * 3.2 - float(bi) * (PI * 0.5))
-		_bulb_mats[bi].emission_energy_multiplier = 1.2 + maxf(phase, 0.0) * 1.4
+		var chase := pow(0.5 + 0.5 * sin(_light_t * 5.2 - float(bi) * (TAU / float(_bulb_mats.size()))), 2.2)
+		var alt := pow(0.5 + 0.5 * sin(_light_t * 7.5 + float(bi % 2) * PI), 3.0)
+		var pulse := lerpf(chase, alt, mode_mix * 0.65)
+		_bulb_mats[bi].emission_energy_multiplier = (0.35 + pulse * 4.85) * _darkness
+	if is_instance_valid(_hub_light):
+		_hub_light.light_energy = (1.55 + 0.35 * sin(_light_t * 2.2)) * _darkness
+
+
+func get_save_angle() -> float:
+	return _angle
+
+
+func set_save_angle(ang: float) -> void:
+	_angle = fposmod(ang, TAU)
+	_sync_cabins()
+	for c: Dictionary in _cabins:
+		var body: AnimatableBody3D = c["body"]
+		if is_instance_valid(body):
+			body.reset_physics_interpolation()
 
 
 func _sync_cabins() -> void:

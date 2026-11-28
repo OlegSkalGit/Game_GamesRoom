@@ -150,16 +150,16 @@ class _IntroDraw extends Control:
 
 		# Animated Title & Shimmer Rule
 		var txt_in := clampf((anim_t - 0.25) / 0.55, 0.0, 1.0)
-		var f := ThemeDB.fallback_font
+		var f := ConfigManager.get_ui_font()
 		var title_y := minf(sz.y * 0.77, cy + sz.y * 0.30)
 		var slide_y := (1.0 - txt_in) * 18.0
-		draw_string(f, Vector2(0, title_y + slide_y), "ЛІСОВЕ КАЗИНО", HORIZONTAL_ALIGNMENT_CENTER, sz.x, 44, Color(0.98, 0.84, 0.36, txt_in * a))
+		draw_string(f, Vector2(0, title_y + slide_y), ConfigManager.t("splash_title"), HORIZONTAL_ALIGNMENT_CENTER, sz.x, 44, Color(0.98, 0.84, 0.36, txt_in * a))
 
 		var bar_w := clampf((anim_t - 0.35) / 0.50, 0.0, 1.0) * minf(sz.x * 0.42, 460.0)
 		draw_line(Vector2(cx - bar_w * 0.5, title_y + 14.0), Vector2(cx + bar_w * 0.5, title_y + 14.0), Color(0.95, 0.78, 0.32, 0.85 * a), 2.2)
 
 		var sub_in := clampf((anim_t - 0.50) / 0.55, 0.0, 1.0)
-		draw_string(f, Vector2(0, title_y + 42.0), "СВІТ 24 ІГОР  •  ПІДЗЕМНА ГАЛЕРЕЯ  •  ГІРСЬКИЙ ТРЕК", HORIZONTAL_ALIGNMENT_CENTER, sz.x, 18, Color(0.88, 0.92, 0.86, sub_in * a))
+		draw_string(f, Vector2(0, title_y + 42.0), ConfigManager.t("splash_sub"), HORIZONTAL_ALIGNMENT_CENTER, sz.x, 18, Color(0.88, 0.92, 0.86, sub_in * a))
 
 		var hint_pulse := (0.60 + 0.30 * sin(anim_t * 3.5)) * txt_in * a
-		draw_string(f, Vector2(0, sz.y - 26.0), "Натисніть [Пробіл], [Enter], [Esc] або ЛКМ — пропустити", HORIZONTAL_ALIGNMENT_CENTER, sz.x, 14, Color(0.76, 0.82, 0.78, hint_pulse))
+		draw_string(f, Vector2(0, sz.y - 26.0), ConfigManager.t("splash_skip"), HORIZONTAL_ALIGNMENT_CENTER, sz.x, 14, Color(0.76, 0.82, 0.78, hint_pulse))
