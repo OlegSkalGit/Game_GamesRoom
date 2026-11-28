@@ -73,7 +73,7 @@ rem ============================================================
 if not exist "%GODOT_EXE%" (
     echo [1/6] Downloading Godot %GODOT_VER%...
     if not exist "%TMP_DIR%" mkdir "%TMP_DIR%"
-    curl.exe -fL --retry 3 --progress-bar "%GODOT_URL%" -o "%TMP_DIR%\godot.zip"
+    call :DL_FILE "%GODOT_URL%" "%TMP_DIR%\godot.zip"
     if errorlevel 1 goto :FAIL_END
     if exist "%TMP_DIR%\godot" rmdir /s /q "%TMP_DIR%\godot"
     mkdir "%TMP_DIR%\godot"
@@ -135,7 +135,7 @@ call :GET_DEF_MODE
 set /a INIT_IDX=%DEF_MODE%-1
 
 cls
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference='SilentlyContinue'; $ErrorActionPreference='Stop'; try{[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false)}catch{}; $items=@('DirectX 12 (Forward+)','Vulkan (Forward+)','OpenGL 3 (Сумісність)'); $idx=[int]%INIT_IDX%; $timerOn=$true; $deadline=[DateTime]::UtcNow.AddSeconds(5); $lastKey=''; $startTop=0; try{[Console]::CursorVisible=$false; $startTop=[Console]::CursorTop}catch{}; try{while($true){$sec=0; if($timerOn){$sec=[int][Math]::Ceiling(($deadline-[DateTime]::UtcNow).TotalSeconds); if($sec -le 0){exit (10+$idx)}}; $stateKey=\"$idx|$timerOn|$sec\"; if($stateKey -ne $lastKey){$lastKey=$stateKey; try{[Console]::SetCursorPosition(0,$startTop)}catch{}; Write-Host '======================================================' -ForegroundColor DarkYellow; Write-Host '   ДІМ ІГОР / ЛІСОВЕ КАЗИНО - ОБЕРІТЬ РЕЖИМ ЗАПУСКУ' -ForegroundColor Yellow; Write-Host '======================================================' -ForegroundColor DarkYellow; Write-Host ''; for($i=0;$i -lt $items.Count;$i++){$line=('  '+($i+1)+'. '+$items[$i]).PadRight(48); if($i -eq $idx){Write-Host ('> '+$line.TrimStart()) -ForegroundColor Black -BackgroundColor Green}else{Write-Host $line -ForegroundColor Gray}}; Write-Host ''; if($timerOn){Write-Host (\"  Автозапуск через $sec с...                          \") -ForegroundColor Green}else{Write-Host '  Таймер зупинено — оберіть режим і натисніть [Enter]' -ForegroundColor DarkYellow}; Write-Host '  [Стрілки Вгору/Вниз] або [1-3] - вибір              ' -ForegroundColor DarkCyan; Write-Host '  [Enter] - запуск  |  [Esc] - вихід                  ' -ForegroundColor DarkCyan}; $hasKey=$false; try{$hasKey=[Console]::KeyAvailable}catch{exit 99}; if($hasKey){$k=[Console]::ReadKey($true); switch($k.Key){'UpArrow'{$timerOn=$false; if($idx -le 0){$idx=$items.Count-1}else{$idx--}} 'W'{$timerOn=$false; if($idx -le 0){$idx=$items.Count-1}else{$idx--}} 'DownArrow'{$timerOn=$false; if($idx -ge $items.Count-1){$idx=0}else{$idx++}} 'S'{$timerOn=$false; if($idx -ge $items.Count-1){$idx=0}else{$idx++}} 'D1'{exit 10} 'NumPad1'{exit 10} 'D2'{exit 11} 'NumPad2'{exit 11} 'D3'{exit 12} 'NumPad3'{exit 12} 'Enter'{exit (10+$idx)} 'Spacebar'{exit (10+$idx)} 'Escape'{exit 0} default{$timerOn=$false}}}; Start-Sleep -Milliseconds 60}}finally{try{[Console]::CursorVisible=$true}catch{}}"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference='SilentlyContinue'; $ErrorActionPreference='Stop'; try{[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false)}catch{}; $items=@('DirectX 12 (Forward+)','Vulkan (Forward+)','OpenGL 3 (Сумісність)'); $idx=[int]%INIT_IDX%; $timerOn=$true; $deadline=[DateTime]::UtcNow.AddSeconds(5); $lastKey=''; $startTop=0; try{[Console]::CursorVisible=$false; $startTop=[Console]::CursorTop}catch{}; try{while($true){$sec=0; if($timerOn){$sec=[int][Math]::Ceiling(($deadline-[DateTime]::UtcNow).TotalSeconds); if($sec -le 0){exit (10+$idx)}}; $stateKey=(''+$idx+'|'+$timerOn+'|'+$sec); if($stateKey -ne $lastKey){$lastKey=$stateKey; try{[Console]::SetCursorPosition(0,$startTop)}catch{}; Write-Host '======================================================' -ForegroundColor DarkYellow; Write-Host '   ДІМ ІГОР / ЛІСОВЕ КАЗИНО - ОБЕРІТЬ РЕЖИМ ЗАПУСКУ' -ForegroundColor Yellow; Write-Host '======================================================' -ForegroundColor DarkYellow; Write-Host ''; for($i=0;$i -lt $items.Count;$i++){$line=('  '+($i+1)+'. '+$items[$i]).PadRight(48); if($i -eq $idx){Write-Host ('> '+$line.TrimStart()) -ForegroundColor Black -BackgroundColor Green}else{Write-Host $line -ForegroundColor Gray}}; Write-Host ''; if($timerOn){Write-Host ('  Автозапуск через '+$sec+' с...                          ') -ForegroundColor Green}else{Write-Host '  Таймер зупинено — оберіть режим і натисніть [Enter]' -ForegroundColor DarkYellow}; Write-Host '  [Стрілки Вгору/Вниз] або [1-3] - вибір              ' -ForegroundColor DarkCyan; Write-Host '  [Enter] - запуск  |  [Esc] - вихід                  ' -ForegroundColor DarkCyan}; $hasKey=$false; try{$hasKey=[Console]::KeyAvailable}catch{exit 99}; if($hasKey){$k=[Console]::ReadKey($true); switch($k.Key){'UpArrow'{$timerOn=$false; if($idx -le 0){$idx=$items.Count-1}else{$idx--}} 'W'{$timerOn=$false; if($idx -le 0){$idx=$items.Count-1}else{$idx--}} 'DownArrow'{$timerOn=$false; if($idx -ge $items.Count-1){$idx=0}else{$idx++}} 'S'{$timerOn=$false; if($idx -ge $items.Count-1){$idx=0}else{$idx++}} 'D1'{exit 10} 'NumPad1'{exit 10} 'D2'{exit 11} 'NumPad2'{exit 11} 'D3'{exit 12} 'NumPad3'{exit 12} 'Enter'{exit (10+$idx)} 'Spacebar'{exit (10+$idx)} 'Escape'{exit 0} default{$timerOn=$false}}}; Start-Sleep -Milliseconds 60}}finally{try{[Console]::CursorVisible=$true}catch{}}"
 set "RC=%ERRORLEVEL%"
 
 if "%RC%"=="10" goto :LAUNCH_DX12
@@ -180,9 +180,9 @@ rem ============================================================
 rem Subroutines (pure cmd / curl / tar / cscript)
 rem ============================================================
 :FETCH_REPO
-echo [Git] Downloading missing repository files from GitHub...
+echo [Git] Downloading repository from GitHub...
 if not exist "%TMP_DIR%" mkdir "%TMP_DIR%"
-curl.exe -fL --retry 3 --progress-bar "%REPO_ZIP_URL%" -o "%TMP_DIR%\repo.zip"
+call :DL_FILE "%REPO_ZIP_URL%" "%TMP_DIR%\repo.zip"
 if errorlevel 1 exit /b 1
 if exist "%TMP_DIR%\repo" rmdir /s /q "%TMP_DIR%\repo"
 mkdir "%TMP_DIR%\repo"
@@ -204,7 +204,7 @@ exit /b 0
 if exist "%GAME_DIR%\addons\%~3\plugin.cfg" exit /b 0
 echo Installing %~4...
 if not exist "%TMP_DIR%" mkdir "%TMP_DIR%"
-curl.exe -fL --retry 3 --progress-bar "%~1" -o "%TMP_DIR%\%~2"
+call :DL_FILE "%~1" "%TMP_DIR%\%~2"
 if errorlevel 1 exit /b 1
 if exist "%TMP_DIR%\%~3" rmdir /s /q "%TMP_DIR%\%~3"
 mkdir "%TMP_DIR%\%~3"
@@ -323,6 +323,23 @@ if errorlevel 1 (
 )
 move /y "%~2.part" "%~2" >nul
 set "NEED_IMPORT=1"
+exit /b 0
+
+:DL_FILE
+setlocal
+set "DL_URL=%~1"
+set "DL_OUT=%~2"
+set "DL_HDR=%TMP_DIR%\dl_hdr.txt"
+if not exist "%TMP_DIR%" mkdir "%TMP_DIR%"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $inv=[Globalization.CultureInfo]::InvariantCulture; $u=$env:DL_URL; $out=$env:DL_OUT; $part=$out+'.part'; $hdr=$env:DL_HDR; if(Test-Path $part){Remove-Item $part -Force -ErrorAction SilentlyContinue}; if(Test-Path $hdr){Remove-Item $hdr -Force -ErrorAction SilentlyContinue}; $psi=[System.Diagnostics.ProcessStartInfo]::new('curl.exe'); $psi.UseShellExecute=$false; $psi.RedirectStandardError=$true; $psi.Arguments='-fsSL --retry 3 -D \"'+$hdr+'\" \"'+$u+'\" -o \"'+$part+'\"'; $p=[System.Diagnostics.Process]::Start($psi); $errTask=$p.StandardError.ReadToEndAsync(); $sw=[System.Diagnostics.Stopwatch]::StartNew(); $pos=0; $dir=1; $barW=18; $pill=5; $isRedir=$false; try{$isRedir=[Console]::IsOutputRedirected}catch{}; $maxW=48; try{$ww=[Console]::WindowWidth; if($ww -gt 16){$maxW=[Math]::Min(54,$ww-2)}}catch{}; function Show([string]$s,[bool]$nl){if($s.Length -gt $maxW){$s=$s.Substring(0,$maxW)}else{$s=$s.PadRight($maxW)}; if($nl){$pre=if($isRedir){''}else{\"`r\"}; [Console]::Write($pre+$s+\"`n\")}elseif(-not $isRedir){[Console]::Write(\"`r\"+$s)}}; while(-not $p.WaitForExit(110)){$got=0L; if(Test-Path $part){$got=(Get-Item $part).Length}; $tot=0L; if(Test-Path $hdr){try{$raw=Get-Content $hdr -Raw -ErrorAction SilentlyContinue; if($raw){$blocks=$raw -split '(\r?\n){2,}' | Where-Object {$_.Trim().Length -gt 0}; if($blocks){$last=@($blocks)[-1]; if($last -match '(?im)^content-length:\s*(\d+)'){$tot=[long]$matches[1]}}}}catch{}}; $mb=$got/1048576.0; $sec=[Math]::Max(0.1,$sw.Elapsed.TotalSeconds); $spd=$mb/$sec; if($tot -gt 1024){$frac=[Math]::Min(1.0,$got/[double]$tot); $fill=[int][Math]::Round($frac*$barW); $pct=[int][Math]::Round($frac*100.0); $bar=('#'*$fill)+('-'*($barW-$fill)); $totMb=$tot/1048576.0; Show ('  ['+$bar+'] '+$pct.ToString().PadLeft(3)+[char]37+' '+$mb.ToString('0.0',$inv)+'/'+$totMb.ToString('0.0',$inv)+' MB') $false}else{$track=('-'*$barW).ToCharArray(); for($i=0;$i -lt $pill;$i++){$track[$pos+$i]='='}; $pos+=$dir; if($pos -ge ($barW-$pill)){$pos=$barW-$pill; $dir=-1}elseif($pos -le 0){$pos=0; $dir=1}; $bar=-join $track; Show ('  ['+$bar+'] '+$mb.ToString('0.0',$inv).PadLeft(5)+' MB ('+$spd.ToString('0.0',$inv)+' MB/s)') $false}}; $p.WaitForExit(); $err=$errTask.GetAwaiter().GetResult(); if($p.ExitCode -ne 0){if(-not $isRedir){Show '' $false}; if($err){[Console]::Error.WriteLine($err.Trim())}; exit $p.ExitCode}; $got=if(Test-Path $part){(Get-Item $part).Length}else{0L}; $mb=$got/1048576.0; $sec=[Math]::Max(0.1,$sw.Elapsed.TotalSeconds); $spd=$mb/$sec; $doneBar='#'*$barW; Show ('  ['+$doneBar+'] 100'+[char]37+' '+$mb.ToString('0.0',$inv)+' MB ('+$spd.ToString('0.0',$inv)+' MB/s)') $true"
+if errorlevel 1 (
+    if exist "%DL_OUT%.part" del /f /q "%DL_OUT%.part"
+    if exist "%DL_HDR%" del /f /q "%DL_HDR%"
+    endlocal & exit /b 1
+)
+if exist "%DL_HDR%" del /f /q "%DL_HDR%"
+move /y "%DL_OUT%.part" "%DL_OUT%" >nul
+endlocal
 exit /b 0
 
 :WRITE_DEFAULT_CONFIG
