@@ -38,6 +38,7 @@ func _run_checks() -> void:
 	var prev_cfg_gfx: Dictionary = ConfigManager.graphics.duplicate()
 	var prev_cfg_display: Dictionary = ConfigManager.display.duplicate()
 	var prev_lang: String = ConfigManager.get_current_language()
+	ConfigManager.set_language("en", false)
 	if not _check(cfg_path.ends_with("game/config.cfg") or cfg_path.ends_with("game\\config.cfg"), "Config must live in game/ root: " + cfg_path): return
 	var pre_cfg := ConfigFile.new()
 	var had_launcher_mode := (pre_cfg.load(cfg_path) == OK and pre_cfg.has_section_key("launcher", "renderer_mode"))
@@ -402,6 +403,14 @@ func _run_checks() -> void:
 	if not _check(gm != null and gm.position.x > 3.0 and gm.position.z > 7.0, "GamesMapStand missing at exit-left (+X, +Z)"): return
 	var qb0 := world.casino_room.get_node_or_null("QuestBoardStand_0") as Node3D
 	if not _check(qb0 != null and absf(qb0.rotation.y - (PI - 0.36)) < 0.05, "Lobby QuestBoard must face North-East into Casino Hall"): return
+	for qb_ch: Node in qb0.get_children():
+		var qb_mi := qb_ch as MeshInstance3D
+		if qb_mi != null and qb_mi.mesh is BoxMesh:
+			var bm := qb_mi.mesh as BoxMesh
+			var y_top: float = qb_mi.position.y + bm.size.y * 0.5
+			var z_front: float = qb_mi.position.z + bm.size.z * 0.5
+			if y_top > 0.97:
+				if not _check(z_front < 0.036, "QuestBoard support/frame protrudes in front of display quad (z=%.3f)" % z_front): return
 	main._toggle_quest_journal()
 	if not _check(main._quest_journal_panel.visible and main._quest_journal_lbl.text.contains(ConfigManager.t("q_explorer_basement_t")), "Quest journal modal failed to open with quests"): return
 	main._toggle_quest_journal()
