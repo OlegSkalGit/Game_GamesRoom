@@ -10,3 +10,4 @@ game/assets/textures/*
 game/config.cfg
 *.tmp
 *.log
+.run_mode
