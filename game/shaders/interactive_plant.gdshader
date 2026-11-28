@@ -44,7 +44,14 @@ void vertex() {
 		world_disp.y -= push * 0.35;
 	}
 
-	VERTEX += (inverse(MODEL_MATRIX) * vec4(world_disp, 0.0)).xyz;
+	vec3 rx = MODEL_MATRIX[0].xyz;
+	vec3 ry = MODEL_MATRIX[1].xyz;
+	vec3 rz = MODEL_MATRIX[2].xyz;
+	VERTEX += vec3(
+		dot(world_disp, rx) / max(dot(rx, rx), 0.0001),
+		dot(world_disp, ry) / max(dot(ry, ry), 0.0001),
+		dot(world_disp, rz) / max(dot(rz, rz), 0.0001)
+	);
 }
 
 void fragment() {

@@ -5,8 +5,8 @@ var sun_uv: Vector2 = Vector2(0.5, 0.3)
 var ray_strength: float = 0.0
 var ray_color: Color = Color(1.0, 0.88, 0.66, 1.0)
 var density: float = 0.90
-var decay: float = 0.942
-var weight: float = 0.062
+var decay: float = 0.922
+var weight: float = 0.082
 
 var _rd: RenderingDevice
 var _shader: RID
@@ -109,9 +109,12 @@ func _render_callback(p_effect_callback_type: int, p_render_data: RenderData) ->
 		return
 	var rd_buffers := buffers as RenderSceneBuffersRD
 	var sz := rd_buffers.get_internal_size()
-	if sz.x <= 8 or sz.y <= 8 or not _ensure_scratch(sz):
+	var half_sz := Vector2i(maxi(sz.x / 2, 4), maxi(sz.y / 2, 4))
+	if sz.x <= 8 or sz.y <= 8 or not _ensure_scratch(half_sz):
 		return
 
+	var xg_half := (half_sz.x + 7) / 8
+	var yg_half := (half_sz.y + 7) / 8
 	var x_groups := (sz.x + 7) / 8
 	var y_groups := (sz.y + 7) / 8
 	var view_count := rd_buffers.get_view_count()
@@ -128,7 +131,7 @@ func _render_callback(p_effect_callback_type: int, p_render_data: RenderData) ->
 			continue
 
 		var pc_gather := PackedFloat32Array([
-			float(sz.x), float(sz.y), sun_uv.x, sun_uv.y,
+			float(half_sz.x), float(half_sz.y), sun_uv.x, sun_uv.y,
 			ray_color.r, ray_color.g, ray_color.b, ray_strength,
 			density, decay, weight, 0.0
 		]).to_byte_array()
@@ -136,7 +139,7 @@ func _render_callback(p_effect_callback_type: int, p_render_data: RenderData) ->
 		_rd.compute_list_bind_compute_pipeline(cl, _pipeline)
 		_rd.compute_list_bind_uniform_set(cl, gather_set, 0)
 		_rd.compute_list_set_push_constant(cl, pc_gather, pc_gather.size())
-		_rd.compute_list_dispatch(cl, x_groups, y_groups, 1)
+		_rd.compute_list_dispatch(cl, xg_half, yg_half, 1)
 		_rd.compute_list_end()
 
 		var pc_blend := PackedFloat32Array([

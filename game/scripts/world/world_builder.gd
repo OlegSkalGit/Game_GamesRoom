@@ -33,6 +33,8 @@ var _reed_mm: MultiMeshInstance3D
 var _tree_mms: Array[MultiMeshInstance3D] = []
 var _weather_orb: MeshInstance3D
 var _road_bulb_mat: StandardMaterial3D
+var _road_lanterns: Array[OmniLight3D] = []
+var _trail_clear_pts: PackedVector2Array = PackedVector2Array()
 var _god_rays_effect: GodRaysEffect
 var _track_spatial: Dictionary = {}
 var _baked_track_heights: PackedFloat32Array = PackedFloat32Array()
@@ -40,6 +42,7 @@ var _baked_track_heights: PackedFloat32Array = PackedFloat32Array()
 
 func build_world(player: Node3D) -> void:
 	_init_noises()
+	_build_trail_cache()
 	race_track = RaceTrackScript.new()
 	race_track.name = "MountainRaceTrack"
 	race_track.prebuild_frames()
@@ -73,7 +76,7 @@ func build_world(player: Node3D) -> void:
 	add_child(weather)
 	weather.setup(sky3d, _water_mat, _foliage_mats, player)
 	weather.god_rays_effect = _god_rays_effect
-	weather.bind_world_lights(ferris_wheel, casino_room, _road_bulb_mat)
+	weather.bind_world_lights(ferris_wheel, casino_room, _road_bulb_mat, _road_lanterns)
 
 	wildlife = WildlifeController.new()
 	wildlife.name = "WildlifeController"
@@ -153,6 +156,15 @@ static func estimate_mountain_base(x: float, z: float) -> float:
 	return 1.5 + rim * rim * 26.0
 
 
+func _build_trail_cache() -> void:
+	_trail_clear_pts.clear()
+	for i: int in range(48):
+		var u := float(i) / 47.0
+		_trail_clear_pts.append(mirror_trail_pos(u))
+		_trail_clear_pts.append(east_trail_pos(u))
+		_trail_clear_pts.append(ferris_trail_pos(u))
+
+
 func _index_track_spatial() -> void:
 	_track_spatial.clear()
 	if race_track == null or race_track.frames.is_empty():
@@ -167,11 +179,18 @@ func _index_track_spatial() -> void:
 		(_track_spatial[key] as Array).append(fp)
 
 
-func _is_near_road_or_track(x: float, z: float, margin: float = 4.5) -> bool:
-	if absf(x) < 23.5 and absf(z) < 13.5:
+func _is_near_road_or_track(x: float, z: float, margin: float = 4.5, clear_trails: bool = true) -> bool:
+	if absf(x) < 23.0 and absf(z) < 13.0:
 		return true
-	if z >= 11.0 and z <= 70.0 and absf(x - cobble_road_x(z)) < margin:
+	if z >= 11.2 and z <= 69.5 and absf(x - cobble_road_x(z)) < maxf(2.45, margin):
 		return true
+	if clear_trails:
+		var trail_r2 := pow(clampf(margin * 0.48, 1.05, 1.55), 2.0)
+		for tp: Vector2 in _trail_clear_pts:
+			var dx := tp.x - x
+			var dz := tp.y - z
+			if dx * dx + dz * dz < trail_r2:
+				return true
 	if Vector2(x + 16.0, z - 68.0).length() < 16.0 + margin:
 		return true
 	if Vector2(x - FERRIS_POS.x, z - FERRIS_POS.y).length() < 15.5 + margin:
@@ -800,11 +819,11 @@ func _build_lakes_and_rocks() -> void:
 				b_tfs.append(Transform3D(Basis.from_euler(Vector3(rng.randf() * 0.2, rng.randf() * TAU, rng.randf() * 0.2)).scaled(Vector3(sc, sc * 0.85, sc)), Vector3(wx, h - 0.12, wz)))
 
 	if boulder_mesh and b_tfs.size() > 0:
-		_rock_mms.append_array(_populate_chunked_mm("Boulder", boulder_mesh, null, b_tfs, true, 120.0, 135.0, 3))
+		_rock_mms.append_array(_populate_chunked_mm("Boulder", boulder_mesh, null, b_tfs, true, 100.0, 135.0, 3, true))
 	if rock_a_mesh and ra_tfs.size() > 0:
-		_rock_mms.append_array(_populate_chunked_mm("RockA", rock_a_mesh, null, ra_tfs, true, 120.0, 135.0, 3))
+		_rock_mms.append_array(_populate_chunked_mm("RockA", rock_a_mesh, null, ra_tfs, true, 100.0, 135.0, 3, true))
 	if rock_b_mesh and rb_tfs.size() > 0:
-		_rock_mms.append_array(_populate_chunked_mm("RockB", rock_b_mesh, null, rb_tfs, true, 120.0, 135.0, 3))
+		_rock_mms.append_array(_populate_chunked_mm("RockB", rock_b_mesh, null, rb_tfs, true, 100.0, 135.0, 3, true))
 
 	# Fallen mossy dead tree trunks (decimated ~50x faster!)
 	var trunk_raw := _extract_merged_mesh("res://assets/models/dead_tree_trunk/dead_tree_trunk.gltf")
@@ -814,12 +833,12 @@ func _build_lakes_and_rocks() -> void:
 		for _i in range(36):
 			var wx := rng.randf_range(-125.0, 125.0)
 			var wz := rng.randf_range(-125.0, 125.0)
-			if maxf(absf(wx), absf(wz)) < 22.0: continue
+			if maxf(absf(wx), absf(wz)) < 22.0 or _is_near_road_or_track(wx, wz, 4.5): continue
 			var h := sample_height(wx, wz)
 			if h < WATER_LEVEL + 0.8: continue
 			var sc := rng.randf_range(0.95, 1.45)
 			log_tfs.append(Transform3D(Basis.from_euler(Vector3(0, rng.randf() * TAU, rng.randf_range(-0.08, 0.08))).scaled(Vector3(sc, sc, sc)), Vector3(wx, h + 0.05, wz)))
-		_rock_mms.append_array(_populate_chunked_mm("DeadLog", trunk_mesh, null, log_tfs, true, 110.0, 125.0, 3))
+		_rock_mms.append_array(_populate_chunked_mm("DeadLog", trunk_mesh, null, log_tfs, true, 95.0, 125.0, 3, true))
 
 
 func _build_spruce_preset(seed_offset: int, height_val: float) -> CosmoTreePreset:
@@ -835,13 +854,13 @@ func _build_spruce_preset(seed_offset: int, height_val: float) -> CosmoTreePrese
 	preset.trunk_params = tp
 
 	var lvl := CosmoBranchLevel.new()
-	lvl.count = 56
+	lvl.count = 40
 	lvl.terminal = true
 	lvl.start = 0.12
 	lvl.end = 0.97
 	lvl.angle = 68.0
-	lvl.length = 0.42
-	lvl.radius = 0.46
+	lvl.length = 0.44
+	lvl.radius = 0.48
 	lvl.gnarl = 0.16
 	lvl.up_force = -0.32
 	var curve := Curve.new()
@@ -853,9 +872,9 @@ func _build_spruce_preset(seed_offset: int, height_val: float) -> CosmoTreePrese
 
 	var fp := CosmoFoliageParams.new()
 	fp.type = 2 # Card leaves
-	fp.leaf_count = 18
+	fp.leaf_count = 13
 	fp.leaf_tip = true
-	fp.leaf_size = 1.52
+	fp.leaf_size = 1.92
 	fp.leaf_size_variance = 0.28
 	fp.leaf_start = 0.06
 	fp.leaf_angle = 52.0
@@ -890,10 +909,14 @@ func _build_birch_or_autumn_preset(is_birch: bool) -> CosmoTreePreset:
 	tp.radius_bottom = 0.21 if is_birch else 0.30
 	tp.lean = 0.16
 	var lvl: CosmoBranchLevel = preset.branch_levels[0]
-	lvl.count = 34
+	lvl.count = 24
 	lvl.start = 0.32
 	lvl.angle = 52.0
 	lvl.up_force = 0.24
+	var fp_b: CosmoFoliageParams = preset.foliage_params as CosmoFoliageParams
+	if fp_b:
+		fp_b.leaf_count = 10
+		fp_b.leaf_size = 1.80
 	if is_birch:
 		var bark_m := StandardMaterial3D.new()
 		bark_m.albedo_color = Color(0.58, 0.56, 0.52)
@@ -970,6 +993,19 @@ func _build_cobblestone_and_trails() -> void:
 			var bulb := MeshInstance3D.new(); var bm := SphereMesh.new(); bm.radius = 0.15; bm.height = 0.30; bm.radial_segments = 12; bm.rings = 6
 			bulb.mesh = bm; bulb.material_override = glow_bulb; bulb.position = lp + Vector3(0, 2.48, 0)
 			add_child(bulb)
+			var r_light := OmniLight3D.new()
+			r_light.position = lp + Vector3(0, 2.52, 0)
+			r_light.light_color = Color(1.0, 0.80, 0.44)
+			r_light.light_energy = 0.0
+			r_light.omni_range = 15.5
+			r_light.omni_attenuation = 1.15
+			r_light.shadow_enabled = false
+			r_light.distance_fade_enabled = true
+			r_light.distance_fade_begin = 52.0
+			r_light.distance_fade_length = 18.0
+			r_light.visible = false
+			add_child(r_light)
+			_road_lanterns.append(r_light)
 
 	var rmi := MeshInstance3D.new()
 	rmi.name = "CobblestoneRoadMesh"
@@ -1108,17 +1144,17 @@ func _build_cosmo_forest() -> void:
 			var tfs: Array[Transform3D] = []
 			for tf in list:
 				tfs.append(tf)
-			_tree_mms.append_array(_populate_chunked_mm("TreeV" + str(v), tm, null, tfs, true, 0.0, 195.0, 4))
+			_tree_mms.append_array(_populate_chunked_mm("TreeV" + str(v), tm, null, tfs, true, 0.0, 195.0, 6, true))
 
 	for bi: int in range(bush_meshes.size()):
 		var bm := bush_meshes[bi]
 		if bm == null:
 			continue
 		_wrap_mesh_interactive(bm, Color(0.92, 1.0, 0.88), 2.5, 0.72, 0.14, 0.45)
-		for _i in range(360):
+		for _i in range(420):
 			var wx := rng.randf_range(-132.0, 132.0)
 			var wz := rng.randf_range(-132.0, 132.0)
-			if _is_near_road_or_track(wx, wz, 3.2): continue
+			if _is_near_road_or_track(wx, wz, 2.8): continue
 			var h := sample_height(wx, wz)
 			if h < WATER_LEVEL + 0.55 or h > 17.5: continue
 			var sc := rng.randf_range(0.80, 1.62)
@@ -1127,7 +1163,7 @@ func _build_cosmo_forest() -> void:
 		for tf in bush_buckets[bi]:
 			btfs.append(tf)
 		if btfs.size() > 0:
-			_bush_mms.append_array(_populate_chunked_mm("Bush" + str(bi), bm, null, btfs, true, 85.0, 135.0, 4))
+			_bush_mms.append_array(_populate_chunked_mm("Bush" + str(bi), bm, null, btfs, true, 84.0, 135.0, 6, true))
 
 	var shrub_raw := _extract_merged_mesh("res://assets/models/shrub_01/shrub_01.gltf")
 	if shrub_raw:
@@ -1136,40 +1172,38 @@ func _build_cosmo_forest() -> void:
 		var norm_s := clampf(1.25 / s_h, 0.35, 2.2)
 		_wrap_mesh_interactive(shrub_mesh, Color(0.92, 1.0, 0.88), 2.4, 0.72, 0.14, 0.42)
 		var ph_tfs: Array[Transform3D] = []
-		for _i in range(180):
+		for _i in range(220):
 			var wx := rng.randf_range(-124.0, 124.0)
 			var wz := rng.randf_range(-124.0, 124.0)
-			if _is_near_road_or_track(wx, wz, 3.4): continue
+			if _is_near_road_or_track(wx, wz, 2.8): continue
 			var h := sample_height(wx, wz)
 			if h < WATER_LEVEL + 0.55 or h > 16.5: continue
 			var sc := norm_s * rng.randf_range(0.82, 1.35)
 			ph_tfs.append(Transform3D(Basis.from_euler(Vector3(0, rng.randf() * TAU, 0)).scaled(Vector3(sc, sc, sc)), Vector3(wx, h - 0.06, wz)))
 		if ph_tfs.size() > 0:
-			_bush_mms.append_array(_populate_chunked_mm("PolyShrub", shrub_mesh, null, ph_tfs, true, 82.0, 125.0, 4))
+			_bush_mms.append_array(_populate_chunked_mm("PolyShrub", shrub_mesh, null, ph_tfs, true, 84.0, 125.0, 6, true))
 
 
 func _build_simple_grass_and_plants(player: Node3D) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
 
-	# 1. Chunked SimpleGrassTextured (organic non-linear random scatter!)
+	# 1. Chunked SimpleGrassTextured (strictly off all roads & trails!)
 	var sgt_script := load("res://addons/simplegrasstextured/grass.gd") as GDScript
 	if sgt_script:
 		var sgt_mesh := load("res://addons/simplegrasstextured/default_mesh.tres") as Mesh
 		var grass_cells: Dictionary = {}
-		for _i in range(36000):
-			var wx := rng.randf_range(-98.0, 98.0)
-			var wz := rng.randf_range(-98.0, 98.0)
-			if absf(wx) < 22.8 and absf(wz) < 12.8: continue
-			if wz >= 11.5 and wz <= 66.0 and absf(wx - cobble_road_x(wz)) < 2.6: continue
-			if Vector2(wx + 16.0, wz - 66.5).length() < 12.0: continue
+		for _i in range(44000):
+			var wx := rng.randf_range(-104.0, 104.0)
+			var wz := rng.randf_range(-104.0, 104.0)
+			if _is_near_road_or_track(wx, wz, 2.45): continue
 			var h := sample_height(wx, wz)
 			if h < WATER_LEVEL + 0.45 or h > 16.5: continue
 			var sc := rng.randf_range(0.75, 1.55)
 			var rot := rng.randf() * TAU
 			var b := Basis.from_euler(Vector3(rng.randf_range(-0.08, 0.08), rot, rng.randf_range(-0.08, 0.08))).scaled(Vector3(sc, sc, sc))
-			var gx := clampi(int((wx + 98.0) / 49.0), 0, 3)
-			var gz := clampi(int((wz + 98.0) / 49.0), 0, 3)
+			var gx := clampi(int((wx + 104.0) / 34.667), 0, 5)
+			var gz := clampi(int((wz + 104.0) / 34.667), 0, 5)
 			var gk := Vector2i(gx, gz)
 			if not grass_cells.has(gk):
 				grass_cells[gk] = [] as Array[Transform3D]
@@ -1616,8 +1650,9 @@ func _apply_graphics_settings() -> void:
 				sg.multimesh.instance_count,
 				int(round(float(sg.multimesh.instance_count) * grass_ratio))
 			)
-			sg.set("optimization_dist_max", 48.0 * dist_scale)
-			sg.visibility_range_end = 56.0 * dist_scale
+			sg.set("optimization_dist_max", 52.0 * dist_scale)
+			sg.visibility_range_begin = 0.0
+			sg.visibility_range_end = 60.0 * dist_scale
 
 	for mm_list in [_fern_mms, _flower_mms, _grass_clump_mms]:
 		for mm_node in mm_list:
@@ -1626,7 +1661,7 @@ func _apply_graphics_settings() -> void:
 					mm_node.multimesh.instance_count,
 					int(round(float(mm_node.multimesh.instance_count) * grass_ratio))
 				)
-				mm_node.visibility_range_end = 48.0 * dist_scale
+				mm_node.visibility_range_end = 56.0 * dist_scale
 
 	for mm_node in _bush_mms:
 		if mm_node and mm_node.multimesh:
@@ -1634,8 +1669,8 @@ func _apply_graphics_settings() -> void:
 				mm_node.multimesh.instance_count,
 				int(round(float(mm_node.multimesh.instance_count) * clampf(grass_ratio + 0.18, 0.2, 1.0)))
 			)
-			mm_node.visibility_range_end = 78.0 * dist_scale
-			mm_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadow_tier >= 3 else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			mm_node.visibility_range_end = 84.0 * dist_scale
+			mm_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadow_tier >= 4 else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 	for tm_node in _tree_mms:
 		if tm_node and tm_node.multimesh:
@@ -1643,34 +1678,37 @@ func _apply_graphics_settings() -> void:
 				tm_node.multimesh.instance_count,
 				int(round(float(tm_node.multimesh.instance_count) * tree_ratio))
 			)
-			tm_node.visibility_range_end = (145.0 * dist_scale) if preset_idx >= 4 else (130.0 * dist_scale)
+			tm_node.visibility_range_end = 145.0 * dist_scale
 			tm_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadow_tier >= 1 else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 	for rm_node in _rock_mms:
 		if rm_node:
-			rm_node.visibility_range_end = 105.0 * dist_scale
+			rm_node.visibility_range_end = 90.0 * dist_scale
 			rm_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadow_tier >= 2 else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 	if terrain:
-		terrain.mesh_lods = 5 if preset_idx <= 0 else (6 if preset_idx <= 2 else 7)
+		terrain.mesh_lods = 5 if preset_idx <= 1 else 6
 		if terrain.material:
-			terrain.material.set("dual_scaling_enabled", preset_idx >= 2)
+			terrain.material.set("dual_scaling_enabled", preset_idx >= 3)
 			terrain.material.set("macro_variation_enabled", preset_idx >= 1)
 
 	if sky3d:
 		if sky3d.sun:
 			sky3d.sun.shadow_enabled = shadow_tier > 0
 			sky3d.sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS if shadow_tier >= 2 else DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
-			sky3d.sun.directional_shadow_blend_splits = shadow_tier >= 2
-			sky3d.sun.directional_shadow_max_distance = 260.0 * dist_scale
+			sky3d.sun.directional_shadow_blend_splits = shadow_tier >= 3
+			sky3d.sun.directional_shadow_max_distance = 205.0 * dist_scale
 			sky3d.sun.directional_shadow_fade_start = 0.85
 			sky3d.sun.shadow_bias = 0.032
 			sky3d.sun.shadow_normal_bias = 1.15
 		if sky3d.moon:
-			sky3d.moon.shadow_enabled = shadow_tier >= 2
+			sky3d.moon.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+			sky3d.moon.shadow_enabled = (shadow_tier >= 2) and (weather != null and weather.get_sun_y() <= -0.02)
 		if sky3d.sky:
 			sky3d.clouds_enabled = preset_idx > 0
 		if sky3d.environment:
 			ConfigManager.apply_to_environment(sky3d.environment)
 	if is_instance_valid(_reflection_probe):
 		_reflection_probe.enable_shadows = shadow_tier >= 2
+	if weather:
+		weather.sync_visuals_now(false)

@@ -118,7 +118,7 @@ func _build_ui() -> void:
 	_panel = PanelContainer.new()
 	_panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	_panel.offset_left = 80; _panel.offset_right = -80
-	_panel.offset_top = -282; _panel.offset_bottom = -12
+	_panel.offset_top = -346; _panel.offset_bottom = -12
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.05, 0.14, 0.09, 0.94)
 	sb.border_color = Color(0.86, 0.68, 0.28)
@@ -183,7 +183,7 @@ func _build_ui() -> void:
 	main_v.add_child(grid_h)
 
 	var z_btn := _make_bet_btn("n_0", "0", Color(0.08, 0.50, 0.24))
-	z_btn.custom_minimum_size = Vector2(56, 84)
+	z_btn.custom_minimum_size = Vector2(58, 138)
 	grid_h.add_child(z_btn)
 
 	var num_grid := GridContainer.new()
@@ -198,7 +198,7 @@ func _build_ui() -> void:
 			var bg := Color(0.64, 0.12, 0.14) if is_red(n) else Color(0.11, 0.12, 0.15)
 			var b := _make_bet_btn("n_%d" % n, str(n), bg)
 			b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			b.custom_minimum_size = Vector2(0, 26)
+			b.custom_minimum_size = Vector2(0, 44)
 			num_grid.add_child(b)
 
 	# Outside Bets row: Dozens + Even-money
@@ -218,7 +218,7 @@ func _build_ui() -> void:
 	]:
 		var b := _make_bet_btn(str(spec[0]), str(spec[1]), spec[2] as Color)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		b.custom_minimum_size = Vector2(0, 32)
+		b.custom_minimum_size = Vector2(0, 44)
 		out_h.add_child(b)
 
 	# Dedicated prominent SPIN LAUNCH row
@@ -259,12 +259,20 @@ func _make_bet_btn(key: String, label: String, base_col: Color) -> Button:
 	var b := Button.new()
 	b.text = label
 	b.focus_mode = Control.FOCUS_NONE
+	b.clip_text = true
 	b.add_theme_font_size_override("font_size", 12)
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = base_col
 	sb.border_color = Color(0.75, 0.62, 0.28, 0.65)
 	sb.set_border_width_all(1); sb.set_corner_radius_all(4)
+	sb.content_margin_top = 2; sb.content_margin_bottom = 2
+	sb.content_margin_left = 4; sb.content_margin_right = 4
 	b.add_theme_stylebox_override("normal", sb)
+	var sb_h := sb.duplicate() as StyleBoxFlat
+	sb_h.bg_color = base_col.lightened(0.14)
+	sb_h.border_color = Color(0.95, 0.80, 0.36)
+	b.add_theme_stylebox_override("hover", sb_h)
+	b.add_theme_stylebox_override("pressed", sb_h)
 	b.set_meta("base_label", label)
 	b.pressed.connect(func(): _place_bet(key))
 	_bet_btns[key] = b

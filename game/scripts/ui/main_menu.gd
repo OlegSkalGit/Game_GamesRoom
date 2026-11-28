@@ -34,13 +34,10 @@ var _active_tab: String = ""
 # Live UI refs for Graphics & Display
 var _opt_preset: OptionButton
 var _sld_scale: HSlider
-var _lbl_scale: Label
 var _opt_aa: OptionButton
 var _opt_shadows: OptionButton
 var _sld_foliage: HSlider
-var _lbl_foliage: Label
 var _sld_dist: HSlider
-var _lbl_dist: Label
 var _chk_sdfgi: CheckButton
 var _chk_ssao: CheckButton
 var _chk_ssr: CheckButton
@@ -49,9 +46,7 @@ var _chk_glow: CheckButton
 var _opt_weather: OptionButton
 var _opt_time: OptionButton
 var _sld_day_dur: HSlider
-var _lbl_day_dur: Label
 var _sld_vol: HSlider
-var _lbl_vol: Label
 
 var _opt_res: OptionButton
 var _opt_win_mode: OptionButton
@@ -516,6 +511,17 @@ func _add_row(label_text: String, control: Control) -> void:
 	_sub_vbox.add_child(row)
 
 
+func _make_slider(label_key: String, min_v: float, max_v: float, step_v: float, on_changed: Callable) -> HSlider:
+	var sld := HSlider.new()
+	sld.min_value = min_v
+	sld.max_value = max_v
+	sld.step = step_v
+	sld.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	sld.value_changed.connect(on_changed)
+	_add_row(ConfigManager.t(label_key), sld)
+	return sld
+
+
 func _build_graphics_panel() -> void:
 	var info := Label.new()
 	var compat_note := ConfigManager.t("gfx_compat_note") if ConfigManager.is_compatibility_renderer() else ""
@@ -535,25 +541,11 @@ func _build_graphics_panel() -> void:
 	)
 	_add_row(ConfigManager.t("gfx_preset"), _opt_preset)
 
-	# Render scale slider
-	var scale_box := HBoxContainer.new()
-	_sld_scale = HSlider.new()
-	_sld_scale.min_value = 0.5
-	_sld_scale.max_value = 1.5
-	_sld_scale.step = 0.05
-	_sld_scale.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_lbl_scale = Label.new()
-	_lbl_scale.custom_minimum_size.x = 56
-	_lbl_scale.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_sld_scale.value_changed.connect(func(v: float):
-		_lbl_scale.text = "%d%%" % int(round(v * 100.0))
+	_sld_scale = _make_slider("gfx_render_scale", 0.5, 1.5, 0.05, func(v: float):
 		ConfigManager.graphics["render_scale"] = v
 		ConfigManager.apply_graphics()
 		ConfigManager.save_config()
 	)
-	scale_box.add_child(_sld_scale)
-	scale_box.add_child(_lbl_scale)
-	_add_row(ConfigManager.t("gfx_render_scale"), scale_box)
 
 	_opt_aa = OptionButton.new()
 	for i in range(ConfigManager.AA_NAMES.size()):
@@ -575,45 +567,17 @@ func _build_graphics_panel() -> void:
 	)
 	_add_row(ConfigManager.t("gfx_shadows"), _opt_shadows)
 
-	# Foliage density
-	var fol_box := HBoxContainer.new()
-	_sld_foliage = HSlider.new()
-	_sld_foliage.min_value = 0.15
-	_sld_foliage.max_value = 1.5
-	_sld_foliage.step = 0.05
-	_sld_foliage.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_lbl_foliage = Label.new()
-	_lbl_foliage.custom_minimum_size.x = 56
-	_lbl_foliage.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_sld_foliage.value_changed.connect(func(v: float):
-		_lbl_foliage.text = "%d%%" % int(round(v * 100.0))
+	_sld_foliage = _make_slider("gfx_foliage", 0.15, 1.5, 0.05, func(v: float):
 		ConfigManager.graphics["foliage_density"] = v
 		ConfigManager.apply_graphics()
 		ConfigManager.save_config()
 	)
-	fol_box.add_child(_sld_foliage)
-	fol_box.add_child(_lbl_foliage)
-	_add_row(ConfigManager.t("gfx_foliage"), fol_box)
 
-	# View distance
-	var dist_box := HBoxContainer.new()
-	_sld_dist = HSlider.new()
-	_sld_dist.min_value = 0.45
-	_sld_dist.max_value = 1.6
-	_sld_dist.step = 0.05
-	_sld_dist.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_lbl_dist = Label.new()
-	_lbl_dist.custom_minimum_size.x = 56
-	_lbl_dist.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_sld_dist.value_changed.connect(func(v: float):
-		_lbl_dist.text = "%d%%" % int(round(v * 100.0))
+	_sld_dist = _make_slider("gfx_dist", 0.45, 1.6, 0.05, func(v: float):
 		ConfigManager.graphics["view_distance"] = v
 		ConfigManager.apply_graphics()
 		ConfigManager.save_config()
 	)
-	dist_box.add_child(_sld_dist)
-	dist_box.add_child(_lbl_dist)
-	_add_row(ConfigManager.t("gfx_dist"), dist_box)
 
 	_chk_sdfgi = CheckButton.new()
 	_chk_sdfgi.text = ConfigManager.t("opt_on")
@@ -684,43 +648,17 @@ func _build_graphics_panel() -> void:
 	)
 	_add_row(ConfigManager.t("gfx_time"), _opt_time)
 
-	var dur_box := HBoxContainer.new()
-	_sld_day_dur = HSlider.new()
-	_sld_day_dur.min_value = 1.0
-	_sld_day_dur.max_value = 60.0
-	_sld_day_dur.step = 1.0
-	_sld_day_dur.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_lbl_day_dur = Label.new()
-	_lbl_day_dur.custom_minimum_size.x = 64
-	_lbl_day_dur.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_sld_day_dur.value_changed.connect(func(v: float):
-		_lbl_day_dur.text = ConfigManager.t("unit_min") % int(round(v))
+	_sld_day_dur = _make_slider("gfx_day_dur", 1.0, 60.0, 1.0, func(v: float):
 		ConfigManager.graphics["day_duration_min"] = v
 		ConfigManager.save_config()
 		time_settings_changed.emit()
 	)
-	dur_box.add_child(_sld_day_dur)
-	dur_box.add_child(_lbl_day_dur)
-	_add_row(ConfigManager.t("gfx_day_dur"), dur_box)
 
-	var vol_box := HBoxContainer.new()
-	_sld_vol = HSlider.new()
-	_sld_vol.min_value = 0.0
-	_sld_vol.max_value = 1.0
-	_sld_vol.step = 0.05
-	_sld_vol.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_lbl_vol = Label.new()
-	_lbl_vol.custom_minimum_size.x = 56
-	_lbl_vol.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_sld_vol.value_changed.connect(func(v: float):
-		_lbl_vol.text = "%d%%" % int(round(v * 100.0))
+	_sld_vol = _make_slider("gfx_volume", 0.0, 1.0, 0.05, func(v: float):
 		ConfigManager.audio["master_volume"] = v
 		ConfigManager.apply_audio()
 		ConfigManager.save_config()
 	)
-	vol_box.add_child(_sld_vol)
-	vol_box.add_child(_lbl_vol)
-	_add_row(ConfigManager.t("gfx_volume"), vol_box)
 
 	_sync_graphics_controls()
 
@@ -729,17 +667,11 @@ func _sync_graphics_controls() -> void:
 	if _opt_preset == null:
 		return
 	_opt_preset.selected = clampi(int(ConfigManager.graphics.get("preset", 3)), 0, ConfigManager.PRESET_NAMES.size() - 1)
-	var sc := float(ConfigManager.graphics.get("render_scale", 1.0))
-	_sld_scale.set_value_no_signal(sc)
-	_lbl_scale.text = "%d%%" % int(round(sc * 100.0))
+	_sld_scale.set_value_no_signal(float(ConfigManager.graphics.get("render_scale", 1.0)))
 	_opt_aa.selected = clampi(int(ConfigManager.graphics.get("antialiasing", 2)), 0, ConfigManager.AA_NAMES.size() - 1)
 	_opt_shadows.selected = clampi(int(ConfigManager.graphics.get("shadows", 3)), 0, ConfigManager.SHADOW_NAMES.size() - 1)
-	var fol := float(ConfigManager.graphics.get("foliage_density", 1.0))
-	_sld_foliage.set_value_no_signal(fol)
-	_lbl_foliage.text = "%d%%" % int(round(fol * 100.0))
-	var dist := float(ConfigManager.graphics.get("view_distance", 1.0))
-	_sld_dist.set_value_no_signal(dist)
-	_lbl_dist.text = "%d%%" % int(round(dist * 100.0))
+	_sld_foliage.set_value_no_signal(float(ConfigManager.graphics.get("foliage_density", 1.0)))
+	_sld_dist.set_value_no_signal(float(ConfigManager.graphics.get("view_distance", 1.0)))
 	_chk_sdfgi.set_pressed_no_signal(bool(ConfigManager.graphics.get("sdfgi", false)))
 	_chk_ssao.set_pressed_no_signal(bool(ConfigManager.graphics.get("ssao", true)))
 	_chk_ssr.set_pressed_no_signal(bool(ConfigManager.graphics.get("ssr", true)))
@@ -747,12 +679,8 @@ func _sync_graphics_controls() -> void:
 	_chk_glow.set_pressed_no_signal(bool(ConfigManager.graphics.get("glow", true)))
 	_opt_weather.selected = clampi(int(ConfigManager.graphics.get("weather_mode", 0)), 0, ConfigManager.WEATHER_MODE_NAMES.size() - 1)
 	_opt_time.selected = clampi(int(ConfigManager.graphics.get("day_time_mode", 0)), 0, ConfigManager.TIME_MODE_NAMES.size() - 1)
-	var dur := float(ConfigManager.graphics.get("day_duration_min", 28.0))
-	_sld_day_dur.set_value_no_signal(dur)
-	_lbl_day_dur.text = ConfigManager.t("unit_min") % int(round(dur))
-	var vol := float(ConfigManager.audio.get("master_volume", 0.8))
-	_sld_vol.set_value_no_signal(vol)
-	_lbl_vol.text = "%d%%" % int(round(vol * 100.0))
+	_sld_day_dur.set_value_no_signal(float(ConfigManager.graphics.get("day_duration_min", 28.0)))
+	_sld_vol.set_value_no_signal(float(ConfigManager.audio.get("master_volume", 0.8)))
 
 
 func _build_display_panel() -> void:
@@ -784,6 +712,7 @@ func _build_display_panel() -> void:
 	_opt_win_mode = OptionButton.new()
 	for i in range(ConfigManager.WINDOW_MODE_NAMES.size()):
 		_opt_win_mode.add_item(ConfigManager.t("win_%d" % i, ConfigManager.WINDOW_MODE_NAMES[i]))
+	_opt_win_mode.item_selected.connect(func(_idx: int): _sync_res_disabled())
 	_add_row(ConfigManager.t("disp_win_mode"), _opt_win_mode)
 
 	_opt_vsync = OptionButton.new()
@@ -812,9 +741,10 @@ func _build_display_panel() -> void:
 	_style_button(apply_btn, true, false)
 	apply_btn.pressed.connect(func():
 		AudioSfx.play_ui_click()
-		var sel_res := _res_list[clampi(_opt_res.selected, 0, _res_list.size() - 1)]
-		ConfigManager.display["width"] = sel_res.x
-		ConfigManager.display["height"] = sel_res.y
+		if not _opt_res.disabled:
+			var sel_res := _res_list[clampi(_opt_res.selected, 0, _res_list.size() - 1)]
+			ConfigManager.display["width"] = sel_res.x
+			ConfigManager.display["height"] = sel_res.y
 		ConfigManager.display["window_mode"] = _opt_win_mode.selected
 		ConfigManager.display["vsync"] = _opt_vsync.selected
 		ConfigManager.display["max_fps"] = _opt_fps.get_selected_id()
@@ -836,6 +766,11 @@ func _build_display_panel() -> void:
 	_sync_display_controls()
 
 
+func _sync_res_disabled() -> void:
+	if _opt_res and _opt_win_mode:
+		_opt_res.disabled = (_opt_win_mode.selected == 1)
+
+
 func _sync_display_controls() -> void:
 	if _opt_res == null:
 		return
@@ -845,6 +780,7 @@ func _sync_display_controls() -> void:
 		idx = 0
 	_opt_res.selected = idx
 	_opt_win_mode.selected = clampi(int(ConfigManager.display.get("window_mode", 0)), 0, ConfigManager.WINDOW_MODE_NAMES.size() - 1)
+	_sync_res_disabled()
 	_opt_vsync.selected = clampi(int(ConfigManager.display.get("vsync", 1)), 0, ConfigManager.VSYNC_NAMES.size() - 1)
 	var fps_target := int(ConfigManager.display.get("max_fps", 0))
 	for i in range(_opt_fps.item_count):

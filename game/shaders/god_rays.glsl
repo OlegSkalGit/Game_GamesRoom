@@ -11,10 +11,10 @@ layout(push_constant, std430) uniform Params {
 	vec2 raster_size;
 	vec2 sun_uv;
 	vec4 ray_color; // rgb = tint, a = strength
-	vec4 cfg;       // x = density, y = decay, z = weight, w = pass_mode (0 gather, 1 blend)
+	vec4 cfg;       // x = density, y = decay, z = weight, w = pass_mode (0 half-res gather, 1 full-res blend)
 } params;
 
-const int NUM_SAMPLES = 22;
+const int NUM_SAMPLES = 16;
 
 float ign(vec2 p) {
 	return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715))));
@@ -62,11 +62,12 @@ void main() {
 		tinted = tinted / (1.0 + tinted * 0.42);
 		imageStore(dst_image, gid, vec4(tinted, 1.0));
 	} else {
-		vec3 ray = textureLod(src_tex, uv, 0.0).rgb * 0.36;
-		ray += textureLod(src_tex, uv + vec2(texel.x * 1.5, 0.0), 0.0).rgb * 0.16;
-		ray += textureLod(src_tex, uv - vec2(texel.x * 1.5, 0.0), 0.0).rgb * 0.16;
-		ray += textureLod(src_tex, uv + vec2(0.0, texel.y * 1.5), 0.0).rgb * 0.16;
-		ray += textureLod(src_tex, uv - vec2(0.0, texel.y * 1.5), 0.0).rgb * 0.16;
+		vec2 ht = texel * 1.5;
+		vec3 ray = textureLod(src_tex, uv, 0.0).rgb * 0.40;
+		ray += textureLod(src_tex, uv + vec2(ht.x, 0.0), 0.0).rgb * 0.15;
+		ray += textureLod(src_tex, uv - vec2(ht.x, 0.0), 0.0).rgb * 0.15;
+		ray += textureLod(src_tex, uv + vec2(0.0, ht.y), 0.0).rgb * 0.15;
+		ray += textureLod(src_tex, uv - vec2(0.0, ht.y), 0.0).rgb * 0.15;
 
 		vec4 base_col = imageLoad(dst_image, gid);
 		imageStore(dst_image, gid, vec4(base_col.rgb + ray, base_col.a));

@@ -642,6 +642,11 @@ func _input(event: InputEvent) -> void:
 func _set_world_paused(paused: bool) -> void:
 	if get_tree():
 		get_tree().paused = paused
+	if _world and _world.sky3d:
+		if paused:
+			_world.sky3d.pause()
+		else:
+			_world.sky3d.resume()
 
 
 func _on_menu_visibility_changed() -> void:
@@ -774,7 +779,7 @@ func quick_load() -> bool:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 	if _world and _world.weather:
-		_world.weather._process(0.016)
+		_world.weather.sync_visuals_now(false)
 	_set_world_paused(false)
 	_status_lbl.visible = false
 	if _quest_hud_panel:
@@ -808,7 +813,7 @@ func _on_new_game_requested() -> void:
 	if _world:
 		_world.set_world_focus(_player, true)
 		if _world.weather:
-			_world.weather._process(0.016)
+			_world.weather.sync_visuals_now(true)
 	_player.set_controls_active(true)
 	_status_lbl.visible = false
 	if _quest_hud_panel: _quest_hud_panel.visible = false
@@ -828,15 +833,13 @@ func _on_resume_requested() -> void:
 
 func _on_weather_changed(mode: int) -> void:
 	if _world and _world.weather:
-		_world.weather.set_weather_mode(mode)
-		_world.weather._process(0.016)
+		_world.weather.set_weather_mode(mode, true)
 		_update_status_hud("")
 
 
 func _on_time_settings_changed() -> void:
 	if _world and _world.weather:
 		_world.weather.apply_time_settings()
-		_world.weather._process(0.016)
 		_update_status_hud("")
 
 
@@ -914,7 +917,7 @@ func _exit_race() -> void:
 	if _world:
 		_world.set_world_focus(_player, true)
 		if _world.weather:
-			_world.weather._process(0.016)
+			_world.weather.sync_visuals_now(false)
 	_player.set_controls_active(true)
 	_show_toast(ConfigManager.t("toast_parked"))
 

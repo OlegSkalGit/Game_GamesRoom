@@ -58,12 +58,18 @@ void fragment() {
 	float detail_fade = exp(-cam_dist * 0.022);
 	float rip_amp = 0.024 * (0.55 + wind_strength) * detail_fade;
 
-	float eps = 0.08;
-	float r0 = wave_displacement(p, t, w_amp) * 0.85 + micro_ripples(rp, t_frag) * rip_amp;
-	float rx = wave_displacement(p + vec2(eps, 0.0), t, w_amp) * 0.85 + micro_ripples(rp + vec2(eps, 0.0), t_frag) * rip_amp;
-	float rz = wave_displacement(p + vec2(0.0, eps), t, w_amp) * 0.85 + micro_ripples(rp + vec2(0.0, eps), t_frag) * rip_amp;
-
-	vec3 n_detail = normalize(vec3((r0 - rx) / eps, 1.0, (r0 - rz) / eps));
+	// Fast analytic surface gradient (replaces 9 heavy trig loops per pixel!)
+	float w0 = sin(dot(p, vec2(0.39, 0.24)) + t * 1.75);
+	float cw0 = cos(dot(p, vec2(0.39, 0.24)) + t * 1.75) * 0.34 * w_amp;
+	float cw1 = sin(dot(p, vec2(-0.27, 0.44)) - t * 1.42) * 0.27 * w_amp;
+	vec2 dw = vec2(0.39 * cw0 + 0.27 * cw1, 0.24 * cw0 - 0.44 * cw1);
+	if (detail_fade > 0.02) {
+		float cr0 = cos(dot(rp, vec2(2.35, 1.41)) + t_frag * 2.3) * 0.45 * rip_amp;
+		float sr1 = sin(dot(rp, vec2(-1.82, 2.67)) - t_frag * 2.8) * 0.35 * rip_amp;
+		dw += vec2(2.35 * cr0 + 1.82 * sr1, 1.41 * cr0 - 2.67 * sr1);
+	}
+	float r0 = w0 * 0.55 * w_amp;
+	vec3 n_detail = normalize(vec3(-dw.x, 1.0, -dw.y));
 	NORMAL = normalize((VIEW_MATRIX * vec4(n_detail, 0.0)).xyz);
 
 	float depth_raw = texture(depth_tex, SCREEN_UV).x;

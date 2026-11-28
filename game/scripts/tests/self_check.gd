@@ -473,7 +473,14 @@ func _run_checks() -> void:
 	var ball_rad := Vector2(ball_p.x - wheel_c.x, ball_p.z - wheel_c.z).length()
 	if not _check(not world.casino_room.is_roulette_spinning() and int(r_done[0]) == r_win and absf(ball_rad - 0.43) < 0.03, "3D Roulette ball failed to settle in pocket (r=%.3f)" % ball_rad): return
 	main._roulette_ui.open(200)
+	var b17: Button = main._roulette_ui._bet_btns["n_17"]
+	var b18: Button = main._roulette_ui._bet_btns["n_18"]
+	await get_tree().process_frame
+	var h17_before: float = b17.size.y
+	main._roulette_ui._place_bet("n_17")
 	main._roulette_ui._place_bet("red")
+	await get_tree().process_frame
+	if not _check(absf(b17.size.y - h17_before) < 0.5 and absf(b18.size.y - b17.size.y) < 0.5, "Roulette row height jumped after placing bet (%f -> %f)" % [h17_before, b17.size.y]): return
 	var key_spin_cnt := [0]
 	var ks_cb := func(_b: Dictionary): key_spin_cnt[0] = int(key_spin_cnt[0]) + 1
 	main._roulette_ui.spin_requested.connect(ks_cb)
@@ -511,6 +518,7 @@ func _run_checks() -> void:
 	world.weather.apply_time_settings()
 	if not _check(absf(world.sky3d.minutes_per_day - 12.0) < 0.01 and not world.sky3d.game_time_enabled, "Day duration or pause failed"): return
 	if not _check(not world.weather.is_dark_time() and not world.casino_room._searchlights_active and not fw._is_dark, "Lights must stay OFF in daylight"): return
+	if not _check(world._road_lanterns.size() >= 10 and not world._road_lanterns[0].visible, "Road lanterns must be built and OFF in daylight"): return
 	if not _check(is_equal_approx(fw._bulb_mats[0].emission_energy_multiplier, 0.0), "Ferris bulbs must stay unlit in daytime"): return
 	if not _check(fw._bulb_mats[0].emission_enabled and fw._bulb_mats[0].emission != Color.BLACK, "Ferris bulb material missing emission color/enable"): return
 	if not _check(fw._cabin_lantern_mat.emission_enabled and fw._cabin_lantern_mat.emission != Color.BLACK, "Ferris cabin lantern missing emission color/enable"): return
@@ -529,6 +537,7 @@ func _run_checks() -> void:
 	if not _check(world.sky3d.is_night() and world.weather.is_dark_time() and bool(world.casino_room._searchlights[0]["spot"].visible), "Night spotlight/sky check failed"): return
 	var sl_lmat: StandardMaterial3D = world.casino_room._searchlights[0]["lens_mat"]
 	if not _check(sl_lmat.emission_enabled and sl_lmat.emission != Color.BLACK and sl_lmat.emission_energy_multiplier > 1.0, "Searchlight lens failed to glow at night"): return
+	if not _check(world._road_lanterns[0].visible and world._road_lanterns[0].light_energy >= 4.0 and world._road_bulb_mat.emission_energy_multiplier >= 3.5, "Road path lanterns failed to illuminate strongly at night"): return
 	var prev_show_fps := bool(ConfigManager.display.get("show_fps", false))
 	ConfigManager.display["show_fps"] = true
 	ConfigManager.apply_display()
@@ -597,6 +606,17 @@ func _run_checks() -> void:
 	# Display Settings Language selector & live switch test
 	main._menu.open_menu()
 	main._menu._open_subtab("display")
+	if not _check(main._menu._opt_res != null and main._menu._opt_win_mode != null, "Display resolution/window OptionButtons missing"): return
+	main._menu._opt_win_mode.select(1)
+	main._menu._opt_win_mode.item_selected.emit(1)
+	if not _check(main._menu._opt_res.disabled, "Resolution selector must be disabled in fullscreen mode"): return
+	main._menu._opt_win_mode.select(0)
+	main._menu._opt_win_mode.item_selected.emit(0)
+	if not _check(not main._menu._opt_res.disabled, "Resolution selector must be enabled in windowed mode"): return
+	main._menu._open_subtab("graphics")
+	for sld: HSlider in [main._menu._sld_scale, main._menu._sld_foliage, main._menu._sld_dist, main._menu._sld_day_dur, main._menu._sld_vol]:
+		if not _check(sld != null and sld.get_parent().get_child_count() == 2, "Slider row should contain only title label and slider without numeric readout"): return
+	main._menu._open_subtab("display")
 	if not _check(main._menu._opt_lang != null and main._menu._opt_lang.item_count == ConfigManager.get_languages().size(), "Display Language OptionButton count mismatch"): return
 	var uk_opt_idx := -1
 	for i in range(main._menu._opt_lang.item_count):
@@ -636,6 +656,34 @@ func _run_checks() -> void:
 	for _pf in range(15):
 		await get_tree().process_frame
 	if not _check(is_equal_approx(world.ferris_wheel._angle, fw_before) and is_equal_approx(float(world.race_track.rivals[0]["s"]), r0_before), "Ferris wheel / AI rivals kept advancing while paused in menu"): return
+
+	# Verify menu Weather & Time-of-Day changes apply immediately while paused, while Auto clock stays paused
+	main._player.global_position = Vector3(-42.0, world.sample_height(-42.0, 18.0) + 1.0, 18.0)
+	ConfigManager.graphics["weather_mode"] = 5 # Storm
+	main._menu.weather_changed.emit(5)
+	if not _check(world.weather.get_rain_amount() > 0.95 and world.sky3d.sky.cumulus_coverage > 0.90 and world.weather._rain_particles.emitting and world.weather._rain_particles.visible, "Storm weather failed to apply immediately while paused"): return
+	ConfigManager.graphics["weather_mode"] = 1 # Clear
+	main._menu.weather_changed.emit(1)
+	if not _check(world.weather.get_rain_amount() < 0.01 and not world.weather._rain_particles.emitting and not world.weather._rain_particles.visible, "Clear weather failed to hide rain immediately while paused"): return
+
+	ConfigManager.graphics["day_time_mode"] = 4 # Night 23:30
+	main._menu.time_settings_changed.emit()
+	if not _check(world.sky3d.is_night() and world.weather.is_dark_time() and fw._bulb_mats[0].emission_energy_multiplier > 0.1 and world._road_lanterns[0].visible and is_equal_approx(world.sky3d.environment.ambient_light_sky_contribution, world.sky3d.night_sky_contribution), "Night time settings failed to apply immediately while paused"): return
+	ConfigManager.graphics["day_time_mode"] = 3 # Sunset 19:36
+	main._menu.time_settings_changed.emit()
+	if not _check(absf(world.sky3d.current_time - 19.6) < 0.01 and world.weather.is_dark_time(), "Sunset time change failed while paused"): return
+	ConfigManager.graphics["day_time_mode"] = 0 # Auto cycle must remain frozen on pause
+	ConfigManager.graphics["day_duration_min"] = 1.0
+	main._menu.time_settings_changed.emit()
+	var frozen_t: float = world.sky3d.current_time
+	for _af in range(10):
+		await get_tree().process_frame
+	if not _check(is_equal_approx(world.sky3d.current_time, frozen_t), "Auto day/night clock kept advancing while game was paused"): return
+	ConfigManager.graphics["day_time_mode"] = 2 # Restore Day 13:00
+	ConfigManager.graphics["day_duration_min"] = 28.0
+	main._menu.time_settings_changed.emit()
+	if not _check(not world.sky3d.is_night() and not world.weather.is_dark_time() and is_equal_approx(fw._bulb_mats[0].emission_energy_multiplier, 0.0) and is_equal_approx(world.sky3d.environment.ambient_light_sky_contribution, world.sky3d.sky_contribution), "Daytime settings failed to restore immediately while paused"): return
+
 	main._menu.close_menu()
 	main._on_resume_requested()
 	if not _check(not get_tree().paused and main._player.controls_enabled, "Resuming from menu failed to unpause world"): return
@@ -722,6 +770,20 @@ func _run_checks() -> void:
 			has_moss = true
 			break
 	if not _check(has_shrub and has_moss, "PolyHaven shrub_01 or moss_01 MultiMeshes missing"): return
+	# Verify trails & cobblestone road are clear of foliage
+	for sg_chunk in world._simple_grass_chunks:
+		if sg_chunk and sg_chunk.multimesh:
+			for gi in range(mini(sg_chunk.multimesh.instance_count, 300)):
+				var p3: Vector3 = sg_chunk.multimesh.get_instance_transform(gi).origin
+				if world._is_near_road_or_track(p3.x, p3.z, 2.2):
+					_check(false, "SimpleGrass spawned onto road or woodland trail at (%.1f, %.1f)" % [p3.x, p3.z])
+					return
+	# Verify CasinoRoom static mesh batching kept draw calls low without removing colliders
+	var cr_meshes := 0
+	for ch in world.casino_room.get_children():
+		if ch is MeshInstance3D:
+			cr_meshes += 1
+	if not _check(cr_meshes < 260, "CasinoRoom static meshes were not batched (%d MeshInstance3D children)" % cr_meshes): return
 	# Exercise live sun-facing God Rays compute pass when running on Forward+ GPU
 	main._player.global_position = Vector3(-40.0, world.sample_height(-40.0, 20.0) + 1.8, 20.0)
 	var sun_dir_test: Vector3 = world.sky3d.sky._sun_transform.origin.normalized()

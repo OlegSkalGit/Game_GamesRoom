@@ -36,6 +36,7 @@ var _lightning_light: DirectionalLight3D
 var _ferris_wheel
 var _casino_room
 var _road_bulb_mat: StandardMaterial3D
+var _road_lanterns: Array[OmniLight3D] = []
 var _last_hud_min: int = -1
 var god_rays_effect: GodRaysEffect
 
@@ -47,14 +48,15 @@ func setup(p_sky: Sky3D, p_water_mat: ShaderMaterial, p_foliage_mats: Array[Shad
 	player_node = p_player
 	_build_rain_particles()
 	_build_lightning()
-	set_weather_mode(int(ConfigManager.graphics.get("weather_mode", 0)))
 	apply_time_settings()
+	set_weather_mode(int(ConfigManager.graphics.get("weather_mode", 0)), true)
 
 
-func bind_world_lights(p_ferris, p_casino, p_road_bulb_mat: StandardMaterial3D) -> void:
+func bind_world_lights(p_ferris, p_casino, p_road_bulb_mat: StandardMaterial3D, p_road_lanterns: Array[OmniLight3D] = []) -> void:
 	_ferris_wheel = p_ferris
 	_casino_room = p_casino
 	_road_bulb_mat = p_road_bulb_mat
+	_road_lanterns = p_road_lanterns
 	_sync_darkness_lights()
 
 
@@ -63,7 +65,7 @@ func apply_time_settings() -> void:
 		return
 	var dur := clampf(float(ConfigManager.graphics.get("day_duration_min", 28.0)), 1.0, 60.0)
 	sky3d.minutes_per_day = dur
-	sky3d.update_interval = clampf(dur / 300.0, 0.016, 0.08)
+	sky3d.update_interval = clampf(dur / 90.0, 0.12, 0.30)
 	var t_mode := clampi(int(ConfigManager.graphics.get("day_time_mode", 0)), 0, 4)
 	match t_mode:
 		0:
@@ -80,7 +82,10 @@ func apply_time_settings() -> void:
 		4:
 			sky3d.game_time_enabled = false
 			sky3d.current_time = 23.5
-	_sync_darkness_lights()
+	# Keep auto-cycle timer paused while menu pause is active (update_interval setter calls resume).
+	if get_tree() and get_tree().paused:
+		sky3d.pause()
+	sync_visuals_now(false)
 
 
 func get_sun_y() -> float:
@@ -112,15 +117,31 @@ func get_time_label() -> String:
 func _sync_darkness_lights() -> void:
 	var is_dark := is_dark_time()
 	var dark_k := get_darkness_factor()
+	if sky3d and sky3d.sun and sky3d.moon:
+		var sh_tier := int(ConfigManager.graphics.get("shadows", 3))
+		var sy := get_sun_y()
+		sky3d.sun.shadow_enabled = (sh_tier > 0) and (sy > -0.02)
+		sky3d.moon.shadow_enabled = (sh_tier >= 2) and (sy <= -0.02)
 	if is_instance_valid(_ferris_wheel):
 		_ferris_wheel.set_darkness(is_dark, dark_k)
 	if is_instance_valid(_casino_room):
 		_casino_room.set_searchlights_active(is_dark, dark_k)
 	if _road_bulb_mat:
-		_road_bulb_mat.emission_energy_multiplier = 2.4 * dark_k if is_dark else 0.0
+		_road_bulb_mat.emission_energy_multiplier = 4.6 * dark_k if is_dark else 0.0
+	for rl: OmniLight3D in _road_lanterns:
+		if is_instance_valid(rl):
+			rl.visible = is_dark and dark_k > 0.02
+			rl.light_energy = 5.4 * dark_k
+	# SceneTree tweens pause when tree.paused is true; snap Sky3D sky contribution right away.
+	if get_tree() and get_tree().paused and sky3d and sky3d.environment:
+		var tw: Variant = sky3d.get("_contrib_tween")
+		if tw is Tween:
+			(tw as Tween).kill()
+		var night_c: float = minf(sky3d.night_sky_contribution, sky3d.sky_contribution) if sky3d.night_ambient_boost else sky3d.sky_contribution
+		sky3d.environment.ambient_light_sky_contribution = sky3d.sky_contribution if sky3d.is_day() else night_c
 
 
-func set_weather_mode(mode: int) -> void:
+func set_weather_mode(mode: int, instant: bool = false) -> void:
 	_mode = clampi(mode, 0, 5)
 	if _mode == 0:
 		_target_weather = _current_weather
@@ -128,6 +149,8 @@ func set_weather_mode(mode: int) -> void:
 		_target_weather = _mode - 1
 		_current_weather = _target_weather
 		_blend = 0.99
+	if instant or (get_tree() != null and get_tree().paused):
+		sync_visuals_now(true)
 	weather_state_changed.emit(get_weather_label())
 
 
@@ -165,14 +188,14 @@ func apply_save_state(st: Dictionary) -> void:
 		_target_weather = clampi(int(st["target_weather"]), 0, 4)
 	_cycle_timer = float(st.get("cycle_timer", 0.0))
 	_blend = 0.99
-	_sync_darkness_lights()
-	_process(0.016)
+	sync_visuals_now(true)
 	weather_state_changed.emit(get_weather_label())
 
 
 func _build_rain_particles() -> void:
 	_rain_particles = GPUParticles3D.new()
 	_rain_particles.name = "RainParticles"
+	_rain_particles.process_mode = Node.PROCESS_MODE_ALWAYS
 	_rain_particles.amount = 1800
 	_rain_particles.lifetime = 0.85
 	_rain_particles.preprocess = 0.4
@@ -211,6 +234,17 @@ func _build_lightning() -> void:
 	add_child(_lightning_light)
 
 
+func sync_visuals_now(snap_weather: bool = false) -> void:
+	if sky3d == null:
+		return
+	_sync_darkness_lights()
+	var hud_min := int(floor(sky3d.current_time * 60.0)) % 1440
+	if hud_min != _last_hud_min:
+		_last_hud_min = hud_min
+		weather_state_changed.emit(get_weather_label())
+	_apply_visual_state(1.0 if snap_weather else 0.0)
+
+
 func _process(delta: float) -> void:
 	if sky3d == null:
 		return
@@ -221,7 +255,8 @@ func _process(delta: float) -> void:
 		_last_hud_min = hud_min
 		weather_state_changed.emit(get_weather_label())
 
-	if _mode == 0:
+	var is_paused := get_tree() != null and get_tree().paused
+	if not is_paused and _mode == 0:
 		_cycle_timer += delta
 		var hold_dur := 240.0
 		match _target_weather:
@@ -244,6 +279,22 @@ func _process(delta: float) -> void:
 				_target_weather = WeatherType.CLEAR if randf() < 0.65 else WeatherType.RAIN
 			weather_state_changed.emit(get_weather_label())
 
+	_apply_visual_state(minf(delta * 0.16, 1.0))
+
+	if not is_paused:
+		# Storm lightning flashes
+		if _target_weather == WeatherType.STORM and _rain_amount > 0.7:
+			_lightning_timer -= delta
+			if _lightning_timer <= 0.0:
+				_lightning_timer = randf_range(5.0, 13.0)
+				_lightning_flash = 3.2
+				AudioSfx.play_thunder()
+		if _lightning_flash > 0.0:
+			_lightning_flash = maxf(0.0, _lightning_flash - delta * 8.5)
+		_lightning_light.light_energy = _lightning_flash
+
+
+func _apply_visual_state(rate: float) -> void:
 	var t_rain := 0.0
 	var t_wind := 0.25
 	var t_cloud := 0.42
@@ -262,23 +313,25 @@ func _process(delta: float) -> void:
 		WeatherType.STORM:
 			t_rain = 1.0; t_wind = 1.20; t_cloud = 0.96; t_fog = 0.00280; t_sun = 0.52
 
-	var rate := minf(delta * 0.16, 1.0)
-	_rain_amount = lerpf(_rain_amount, t_rain, rate)
-	_wind_strength = lerpf(_wind_strength, t_wind, rate)
-	_cloud_cov = lerpf(_cloud_cov, t_cloud, rate)
-	_fog_dens = lerpf(_fog_dens, t_fog, rate)
+	if rate > 0.0:
+		_rain_amount = lerpf(_rain_amount, t_rain, rate)
+		_wind_strength = lerpf(_wind_strength, t_wind, rate)
+		_cloud_cov = lerpf(_cloud_cov, t_cloud, rate)
+		_fog_dens = lerpf(_fog_dens, t_fog, rate)
 
 	if sky3d.sky:
 		var want_fog := _target_weather != WeatherType.CLEAR or _rain_amount > 0.05
 		if sky3d.sky.fog_visible != want_fog:
 			sky3d.sky.fog_visible = want_fog
-		if absf(sky3d.sky.cumulus_coverage - _cloud_cov) > 0.003:
+		if rate >= 0.999 or absf(sky3d.sky.cumulus_coverage - _cloud_cov) > 0.003:
 			sky3d.sky.cumulus_coverage = _cloud_cov
 			sky3d.sky.cumulus_intensity = lerpf(1.35, 0.45, _rain_amount)
-		if absf(sky3d.sky.fog_density - _fog_dens) > 0.00003:
+		if rate >= 0.999 or absf(sky3d.sky.fog_density - _fog_dens) > 0.00003:
 			sky3d.sky.fog_density = _fog_dens
 		sky3d.wind_speed = 1.5 + _wind_strength * 6.5
-		if absf(sky3d.sun_energy - t_sun) > 0.01:
+		if rate >= 0.999:
+			sky3d.sun_energy = t_sun
+		elif rate > 0.0 and absf(sky3d.sun_energy - t_sun) > 0.01:
 			sky3d.sun_energy = lerpf(sky3d.sun_energy, t_sun, rate)
 
 	var sg_singleton := get_node_or_null("/root/SimpleGrass")
@@ -288,7 +341,7 @@ func _process(delta: float) -> void:
 	if sky3d.environment and not ConfigManager.is_compatibility_renderer():
 		if sky3d.environment.volumetric_fog_enabled:
 			var clear_vf := 0.00040 if _target_weather == WeatherType.CLEAR else clampf(_fog_dens * 2.0, 0.0010, 0.028)
-			if absf(sky3d.environment.volumetric_fog_density - clear_vf) > 0.00005:
+			if rate >= 0.999 or absf(sky3d.environment.volumetric_fog_density - clear_vf) > 0.00005:
 				sky3d.environment.volumetric_fog_density = clear_vf
 	_update_god_rays()
 
@@ -309,20 +362,19 @@ func _process(delta: float) -> void:
 		in_casino = in_ground_floors or in_mansard
 
 	var should_rain := _rain_amount > 0.12 and not in_casino
+	var was_emitting := _rain_particles.emitting
 	_rain_particles.emitting = should_rain
 	if should_rain:
+		_rain_particles.visible = true
 		_rain_particles.amount_ratio = clampf(_rain_amount, 0.15, 1.0)
+		if not was_emitting and rate >= 0.999:
+			_rain_particles.restart()
+	elif rate >= 0.999 or (get_tree() != null and get_tree().paused):
+		_rain_particles.visible = false
 
-	# Storm lightning flashes
-	if _target_weather == WeatherType.STORM and _rain_amount > 0.7:
-		_lightning_timer -= delta
-		if _lightning_timer <= 0.0:
-			_lightning_timer = randf_range(5.0, 13.0)
-			_lightning_flash = 3.2
-			AudioSfx.play_thunder()
-	if _lightning_flash > 0.0:
-		_lightning_flash = maxf(0.0, _lightning_flash - delta * 8.5)
-	_lightning_light.light_energy = _lightning_flash
+	if rate >= 0.999 and _target_weather != WeatherType.STORM:
+		_lightning_flash = 0.0
+		_lightning_light.light_energy = 0.0
 
 
 func _update_god_rays() -> void:

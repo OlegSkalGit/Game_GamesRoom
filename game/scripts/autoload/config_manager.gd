@@ -409,7 +409,7 @@ func apply_preset(preset_idx: int) -> void:
 			graphics["view_distance"] = 1.0
 		4: # Ультра (Потужний ПК)
 			graphics["render_scale"] = 1.0
-			graphics["antialiasing"] = 4
+			graphics["antialiasing"] = 3
 			graphics["shadows"] = 3
 			graphics["sdfgi"] = true
 			graphics["ssao"] = true
@@ -526,7 +526,7 @@ func apply_graphics() -> void:
 	var s_size: int = shadow_sizes[clampi(shadow_tier, 0, shadow_sizes.size() - 1)]
 	RenderingServer.directional_shadow_atlas_set_size(s_size, true)
 	if vp != null:
-		vp.positional_shadow_atlas_size = 4096 if shadow_tier >= 3 else (2048 if shadow_tier >= 1 else 512)
+		vp.positional_shadow_atlas_size = 2048 if shadow_tier >= 2 else 512
 	match shadow_tier:
 		0, 1:
 			RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_HARD)
@@ -576,22 +576,22 @@ func apply_to_environment(env: Environment) -> void:
 		env.sdfgi_enabled = use_gi
 		env.sdfgi_use_occlusion = true
 		env.sdfgi_read_sky_light = true
-		env.sdfgi_bounce_feedback = 0.52
-		env.sdfgi_cascades = 3
-		env.sdfgi_min_cell_size = 0.45
+		env.sdfgi_bounce_feedback = 0.45
+		env.sdfgi_cascades = 2 if preset_idx <= 4 else 3
+		env.sdfgi_min_cell_size = 0.65 if preset_idx <= 4 else 0.45
 
 		env.ssao_enabled = bool(graphics.get("ssao", true))
-		env.ssao_radius = 1.15
+		env.ssao_radius = 1.10
 		env.ssao_intensity = 1.0
 
 		env.ssil_enabled = (preset_idx >= 3)
-		env.ssil_radius = 3.8
+		env.ssil_radius = 2.6
 		env.ssil_intensity = 0.42
 		env.ssil_sharpness = 0.96
 		env.ssil_normal_rejection = 1.0
 
 		env.ssr_enabled = bool(graphics.get("ssr", true))
-		env.ssr_max_steps = 20 if preset_idx <= 4 else 28
+		env.ssr_max_steps = 16 if preset_idx <= 4 else 24
 		env.ssr_fade_in = 0.14
 		env.ssr_fade_out = 2.2
 		env.ssr_depth_tolerance = 0.28

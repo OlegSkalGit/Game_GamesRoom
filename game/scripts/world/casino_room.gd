@@ -109,6 +109,7 @@ func _ready() -> void:
 	_build_all_paintings()
 	_build_roof_searchlights()
 	_build_interior_reflection_probe()
+	_batch_static_meshes()
 	_build_interior_gi_and_decals()
 	ConfigManager.graphics_changed.connect(_apply_lighting_quality)
 	ConfigManager.language_changed.connect(_refresh_language)
@@ -452,7 +453,6 @@ func _build_west_wing() -> void:
 	l_west.shadow_bias = 0.045
 	l_west.shadow_blur = 1.5
 	add_child(l_west)
-	_arch_shadow_lights.append(l_west)
 
 
 func _build_east_wing_and_stairs() -> void:
@@ -518,7 +518,6 @@ func _build_east_wing_and_stairs() -> void:
 	l_east.shadow_bias = 0.045
 	l_east.shadow_blur = 1.5
 	add_child(l_east)
-	_arch_shadow_lights.append(l_east)
 
 
 func _add_stair_ramp_collider(node_name: String, x_pos: float, width: float, p_a: Vector2, p_b: Vector2) -> void:
@@ -848,8 +847,6 @@ func _build_basement_vault() -> void:
 		bl.shadow_blur = 1.5
 		bl.shadow_enabled = false
 		add_child(bl)
-		if absf(lp.x + 0.8) < 0.5 and lp.z > 0.0:
-			_arch_shadow_lights.append(bl)
 
 	# Stairwell Wall Sconce mounted cleanly on East wall (illuminates marble steps with NO floating fixtures!)
 	_add_box_body(self, Vector3(0.08, 0.24, 0.22), Vector3(18.76, -1.75, 1.8), bronze_mat, false)
@@ -1016,8 +1013,6 @@ func _build_mansard() -> void:
 		ml.shadow_bias = 0.045
 		ml.shadow_blur = 1.5
 		add_child(ml)
-		if absf(mx - 3.0) < 0.5:
-			_arch_shadow_lights.append(ml)
 
 
 func _build_casino_centerpiece() -> void:
@@ -1300,9 +1295,14 @@ func _build_chandeliers() -> void:
 		light.omni_attenuation = 1.15
 		light.shadow_bias = 0.045
 		light.shadow_blur = 1.5
+		light.distance_fade_enabled = true
+		light.distance_fade_begin = 26.0
+		light.distance_fade_shadow = 20.0
+		light.distance_fade_length = 8.0
 		ch.add_child(light)
 		_disco_lights.append(light)
-		_arch_shadow_lights.append(light)
+		if cz < 0.0:
+			_arch_shadow_lights.append(light)
 
 
 func _build_all_paintings() -> void:
@@ -1330,6 +1330,7 @@ func _build_all_paintings() -> void:
 		var rim_mesh := BoxMesh.new(); rim_mesh.size = Vector3(frame_w + 0.08, frame_h + 0.08, 0.04)
 		var rim_mi := MeshInstance3D.new()
 		rim_mi.mesh = rim_mesh; rim_mi.material_override = highlight_mat; rim_mi.position = Vector3(0, 0, -0.01)
+		rim_mi.set_meta("no_batch", true)
 		p_node.add_child(rim_mi)
 
 		_add_box_body(p_node, Vector3(0.95, 0.045, 0.06), Vector3(0, frame_h * 0.5 + 0.18, 0.24), bronze_mat, false)
@@ -1377,6 +1378,9 @@ func _build_all_paintings() -> void:
 		lamp.light_energy = 0.52
 		lamp.omni_range = 3.8
 		lamp.shadow_enabled = false
+		lamp.distance_fade_enabled = true
+		lamp.distance_fade_begin = 11.0
+		lamp.distance_fade_length = 4.0
 		p_node.add_child(lamp)
 
 		var area := StaticBody3D.new()
@@ -1531,6 +1535,75 @@ func _build_interior_reflection_probe() -> void:
 	_casino_probe.intensity = 1.25
 	_casino_probe.enable_shadows = int(ConfigManager.graphics.get("shadows", 3)) >= 2
 	add_child(_casino_probe)
+
+
+func _is_dynamic_subtree(node: Node) -> bool:
+	if not (node is Node3D):
+		return false
+	return node == _roulette_wheel or node == _roulette_ball or node == _roulette_chips_root or _slot_levers.has(node) or node.name.begins_with("Searchlight")
+
+
+func _collect_batch_candidates(node: Node, out: Array[MeshInstance3D]) -> void:
+	for ch in node.get_children():
+		if _is_dynamic_subtree(ch):
+			continue
+		if ch is MeshInstance3D:
+			var mi := ch as MeshInstance3D
+			if mi.visible and mi.mesh != null and mi.material_override != null and not (mi.mesh is QuadMesh) and not mi.has_meta("no_batch"):
+				out.append(mi)
+		elif ch.get_class() == "Node3D":
+			_collect_batch_candidates(ch, out)
+
+
+func _batch_static_meshes() -> void:
+	var candidates: Array[MeshInstance3D] = []
+	_collect_batch_candidates(self, candidates)
+	var buckets: Dictionary = {}
+	var to_free: Array[MeshInstance3D] = []
+	var self_inv := global_transform.affine_inverse()
+
+	for mi in candidates:
+		var mat := mi.material_override
+		var ltf := self_inv * mi.global_transform
+		var lp := ltf.origin
+		var sz := mi.get_aabb().size
+		var max_dim := maxf(maxf(sz.x, sz.y), sz.z)
+		var zone := "B" if lp.y < -0.2 else ("M" if lp.y > 6.6 else ("W" if lp.x < -8.8 else ("E" if lp.x > 8.8 else "C")))
+		var sh_tag := 1 if max_dim >= 0.45 else 0
+		var key := "%s_%d_%d" % [zone, sh_tag, mat.get_instance_id()]
+		if not buckets.has(key):
+			buckets[key] = {"mat": mat, "shadow": sh_tag == 1, "items": []}
+		(buckets[key]["items"] as Array).append({"mesh": mi.mesh, "tf": ltf, "mi": mi})
+
+	for key in buckets.keys():
+		var b: Dictionary = buckets[key]
+		var items: Array = b["items"]
+		if items.size() < 2:
+			continue
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		for it: Dictionary in items:
+			var sm: Mesh = it["mesh"]
+			var tf: Transform3D = it["tf"]
+			for s: int in range(sm.get_surface_count()):
+				st.append_from(sm, s, tf)
+		var merged := st.commit()
+		if merged and merged.get_surface_count() > 0:
+			var bmi := MeshInstance3D.new()
+			bmi.name = "Batched_" + str(key)
+			bmi.mesh = merged
+			bmi.material_override = b["mat"]
+			bmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if bool(b["shadow"]) else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			add_child(bmi)
+			for it: Dictionary in items:
+				to_free.append(it["mi"] as MeshInstance3D)
+
+	for mi in to_free:
+		if is_instance_valid(mi):
+			var p := mi.get_parent()
+			if p:
+				p.remove_child(mi)
+			mi.free()
 
 
 func _build_interior_gi_and_decals() -> void:

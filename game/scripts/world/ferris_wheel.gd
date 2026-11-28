@@ -219,6 +219,19 @@ func _build_structure() -> void:
 		_cabins.append({"body": body, "offset": float(ci) * TAU / float(CABIN_COUNT)})
 
 
+func _sync_dark_lights() -> void:
+	if not _is_dark or _darkness <= 0.01:
+		return
+	var mode_mix := 0.5 + 0.5 * sin(_light_t * 0.45)
+	for bi: int in range(_bulb_mats.size()):
+		var chase := pow(0.5 + 0.5 * sin(_light_t * 5.2 - float(bi) * (TAU / float(_bulb_mats.size()))), 2.2)
+		var alt := pow(0.5 + 0.5 * sin(_light_t * 7.5 + float(bi % 2) * PI), 3.0)
+		var pulse := lerpf(chase, alt, mode_mix * 0.65)
+		_bulb_mats[bi].emission_energy_multiplier = (0.35 + pulse * 4.85) * _darkness
+	if is_instance_valid(_hub_light):
+		_hub_light.light_energy = (1.55 + 0.35 * sin(_light_t * 2.2)) * _darkness
+
+
 func set_darkness(active: bool, darkness: float = 1.0) -> void:
 	_is_dark = active
 	_darkness = clampf(darkness, 0.0, 1.0) if active else 0.0
@@ -226,9 +239,11 @@ func set_darkness(active: bool, darkness: float = 1.0) -> void:
 		_cabin_lantern_mat.emission_energy_multiplier = 1.65 * _darkness if _is_dark else 0.0
 	if is_instance_valid(_hub_light):
 		_hub_light.visible = _is_dark and _darkness > 0.01
-	if not _is_dark:
+	if not _is_dark or _darkness <= 0.01:
 		for bm: StandardMaterial3D in _bulb_mats:
 			bm.emission_energy_multiplier = 0.0
+	else:
+		_sync_dark_lights()
 
 
 func _physics_process(delta: float) -> void:
@@ -240,15 +255,7 @@ func _process(delta: float) -> void:
 	if not _is_dark or _darkness <= 0.01:
 		return
 	_light_t += delta
-	# Alternate marquee chase wave & festive twinkle bursts when dark (sunset/night)
-	var mode_mix := 0.5 + 0.5 * sin(_light_t * 0.45)
-	for bi: int in range(_bulb_mats.size()):
-		var chase := pow(0.5 + 0.5 * sin(_light_t * 5.2 - float(bi) * (TAU / float(_bulb_mats.size()))), 2.2)
-		var alt := pow(0.5 + 0.5 * sin(_light_t * 7.5 + float(bi % 2) * PI), 3.0)
-		var pulse := lerpf(chase, alt, mode_mix * 0.65)
-		_bulb_mats[bi].emission_energy_multiplier = (0.35 + pulse * 4.85) * _darkness
-	if is_instance_valid(_hub_light):
-		_hub_light.light_energy = (1.55 + 0.35 * sin(_light_t * 2.2)) * _darkness
+	_sync_dark_lights()
 
 
 func get_save_angle() -> float:
