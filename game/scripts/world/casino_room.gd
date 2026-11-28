@@ -142,9 +142,9 @@ func _mat(col: Color, rough: float = 0.7, metal: float = 0.0, emission: Color = 
 	m.albedo_color = col
 	m.roughness = rough
 	m.metallic = metal
-	if emit_e > 0.0:
+	if emit_e > 0.0 or emission != Color.BLACK:
 		m.emission_enabled = true
-		m.emission = emission
+		m.emission = emission if emission != Color.BLACK else col
 		m.emission_energy_multiplier = emit_e
 	return m
 

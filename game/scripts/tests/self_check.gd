@@ -484,6 +484,8 @@ func _run_checks() -> void:
 	if not _check(absf(world.sky3d.minutes_per_day - 12.0) < 0.01 and not world.sky3d.game_time_enabled, "Day duration or pause failed"): return
 	if not _check(not world.weather.is_dark_time() and not world.casino_room._searchlights_active and not fw._is_dark, "Lights must stay OFF in daylight"): return
 	if not _check(is_equal_approx(fw._bulb_mats[0].emission_energy_multiplier, 0.0), "Ferris bulbs must stay unlit in daytime"): return
+	if not _check(fw._bulb_mats[0].emission_enabled and fw._bulb_mats[0].emission != Color.BLACK, "Ferris bulb material missing emission color/enable"): return
+	if not _check(fw._cabin_lantern_mat.emission_enabled and fw._cabin_lantern_mat.emission != Color.BLACK, "Ferris cabin lantern missing emission color/enable"): return
 
 	ConfigManager.graphics["day_time_mode"] = 3 # Sunset 19:36
 	world.weather.apply_time_settings()
@@ -497,6 +499,8 @@ func _run_checks() -> void:
 	ConfigManager.graphics["day_time_mode"] = 4 # Night 23:30
 	world.weather.apply_time_settings()
 	if not _check(world.sky3d.is_night() and world.weather.is_dark_time() and bool(world.casino_room._searchlights[0]["spot"].visible), "Night spotlight/sky check failed"): return
+	var sl_lmat: StandardMaterial3D = world.casino_room._searchlights[0]["lens_mat"]
+	if not _check(sl_lmat.emission_enabled and sl_lmat.emission != Color.BLACK and sl_lmat.emission_energy_multiplier > 1.0, "Searchlight lens failed to glow at night"): return
 	var prev_show_fps := bool(ConfigManager.display.get("show_fps", false))
 	ConfigManager.display["show_fps"] = true
 	ConfigManager.apply_display()
