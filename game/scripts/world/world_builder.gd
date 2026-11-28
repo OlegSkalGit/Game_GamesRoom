@@ -33,6 +33,7 @@ var _reed_mm: MultiMeshInstance3D
 var _tree_mms: Array[MultiMeshInstance3D] = []
 var _weather_orb: MeshInstance3D
 var _road_bulb_mat: StandardMaterial3D
+var _god_rays_effect: GodRaysEffect
 var _track_spatial: Dictionary = {}
 var _baked_track_heights: PackedFloat32Array = PackedFloat32Array()
 
@@ -71,6 +72,7 @@ func build_world(player: Node3D) -> void:
 	weather.name = "WeatherController"
 	add_child(weather)
 	weather.setup(sky3d, _water_mat, _foliage_mats, player)
+	weather.god_rays_effect = _god_rays_effect
 	weather.bind_world_lights(ferris_wheel, casino_room, _road_bulb_mat)
 
 	wildlife = WildlifeController.new()
@@ -318,6 +320,11 @@ func _build_sky3d() -> void:
 
 	if sky3d.environment:
 		ConfigManager.apply_to_environment(sky3d.environment)
+
+	var comp := Compositor.new()
+	_god_rays_effect = GodRaysEffect.new()
+	comp.compositor_effects = [_god_rays_effect]
+	sky3d.compositor = comp
 
 	_reflection_probe = ReflectionProbe.new()
 	_reflection_probe.name = "SkyReflectionProbe"
@@ -746,8 +753,8 @@ func _build_lakes_and_rocks() -> void:
 
 	var water_mesh := PlaneMesh.new()
 	water_mesh.size = Vector2(280.0, 280.0)
-	water_mesh.subdivide_width = 220
-	water_mesh.subdivide_depth = 220
+	water_mesh.subdivide_width = 104
+	water_mesh.subdivide_depth = 104
 
 	var water := MeshInstance3D.new()
 	water.name = "LakesWater"
@@ -755,6 +762,7 @@ func _build_lakes_and_rocks() -> void:
 	water.material_override = _water_mat
 	water.position = Vector3(0.0, WATER_LEVEL, 0.0)
 	water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	water.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	add_child(water)
 
 	# Decimated Photogrammetry Boulders & Low-poly Terrain3D Rocks along lakes & hillsides
@@ -956,10 +964,10 @@ func _build_cobblestone_and_trails() -> void:
 		if i % 8 == 3:
 			var side_s := 1.0 if ((i / 8) % 2 == 0) else -1.0
 			var lp := c0 + rt * side_s * 1.18
-			var post := MeshInstance3D.new(); var pm := CylinderMesh.new(); pm.top_radius = 0.06; pm.bottom_radius = 0.09; pm.height = 2.4
+			var post := MeshInstance3D.new(); var pm := CylinderMesh.new(); pm.top_radius = 0.06; pm.bottom_radius = 0.09; pm.height = 2.4; pm.radial_segments = 10; pm.rings = 1
 			post.mesh = pm; post.material_override = lantern_mat; post.position = lp + Vector3(0, 1.2, 0)
 			add_child(post)
-			var bulb := MeshInstance3D.new(); var bm := SphereMesh.new(); bm.radius = 0.15
+			var bulb := MeshInstance3D.new(); var bm := SphereMesh.new(); bm.radius = 0.15; bm.height = 0.30; bm.radial_segments = 12; bm.rings = 6
 			bulb.mesh = bm; bulb.material_override = glow_bulb; bulb.position = lp + Vector3(0, 2.48, 0)
 			add_child(bulb)
 
@@ -998,11 +1006,11 @@ func _build_outdoor_gadgets() -> void:
 	var pcs := CollisionShape3D.new(); var pb := BoxShape3D.new(); pb.size = Vector3(2.8, 0.22, 7.6); pcs.shape = pb; pier.add_child(pcs)
 	for px: float in [-1.15, 1.15]:
 		for pz: float in [-2.8, 0.2, 3.0]:
-			var post := MeshInstance3D.new(); var pm := CylinderMesh.new(); pm.top_radius = 0.12; pm.bottom_radius = 0.14; pm.height = 1.6
+			var post := MeshInstance3D.new(); var pm := CylinderMesh.new(); pm.top_radius = 0.12; pm.bottom_radius = 0.14; pm.height = 1.6; pm.radial_segments = 10; pm.rings = 1
 			post.mesh = pm; post.material_override = wood_mat; post.position = Vector3(px, -0.35, pz); pier.add_child(post)
 
 	var brass := StandardMaterial3D.new(); brass.albedo_color = Color(0.88, 0.70, 0.22); brass.metallic = 0.85; brass.roughness = 0.25
-	var horn := MeshInstance3D.new(); var hm := CylinderMesh.new(); hm.top_radius = 0.22; hm.bottom_radius = 0.05; hm.height = 0.55
+	var horn := MeshInstance3D.new(); var hm := CylinderMesh.new(); hm.top_radius = 0.22; hm.bottom_radius = 0.05; hm.height = 0.55; hm.radial_segments = 12; hm.rings = 1
 	horn.mesh = hm; horn.material_override = brass; horn.position = Vector3(1.15, 0.68, -2.8); horn.rotation_degrees = Vector3(72.0, 0.0, 0.0)
 	pier.add_child(horn)
 	var horn_body := StaticBody3D.new(); horn_body.collision_layer = 2; horn_body.collision_mask = 0; horn_body.position = Vector3(1.15, 0.72, -2.8)
@@ -1014,10 +1022,10 @@ func _build_outdoor_gadgets() -> void:
 	var sy := sample_height(-30.0, 8.0)
 	var shroom := Node3D.new(); shroom.position = Vector3(-30.0, sy, 8.0)
 	add_child(shroom)
-	var stem_m := CylinderMesh.new(); stem_m.top_radius = 0.42; stem_m.bottom_radius = 0.56; stem_m.height = 0.9
+	var stem_m := CylinderMesh.new(); stem_m.top_radius = 0.42; stem_m.bottom_radius = 0.56; stem_m.height = 0.9; stem_m.radial_segments = 14; stem_m.rings = 1
 	var smi := MeshInstance3D.new(); smi.mesh = stem_m; smi.material_override = StandardMaterial3D.new()
 	(smi.material_override as StandardMaterial3D).albedo_color = Color(0.92, 0.88, 0.78); smi.position = Vector3(0, 0.45, 0); shroom.add_child(smi)
-	var cap_m := SphereMesh.new(); cap_m.radius = 1.45; cap_m.height = 0.95
+	var cap_m := SphereMesh.new(); cap_m.radius = 1.45; cap_m.height = 0.95; cap_m.radial_segments = 20; cap_m.rings = 10
 	var cap_mat := StandardMaterial3D.new(); cap_mat.albedo_color = Color(0.92, 0.22, 0.28); cap_mat.emission_enabled = true; cap_mat.emission = Color(0.75, 0.14, 0.24); cap_mat.emission_energy_multiplier = 0.65
 	var cmi := MeshInstance3D.new(); cmi.mesh = cap_m; cmi.material_override = cap_mat; cmi.position = Vector3(0, 0.95, 0); shroom.add_child(cmi)
 	var sh_body := StaticBody3D.new(); sh_body.collision_layer = 2; sh_body.collision_mask = 0; sh_body.position = Vector3(0, 1.0, 0)
@@ -1033,7 +1041,7 @@ func _build_outdoor_gadgets() -> void:
 	var am := MeshInstance3D.new(); am.mesh = stone_m; am.material_override = StandardMaterial3D.new()
 	(am.material_override as StandardMaterial3D).albedo_color = Color(0.45, 0.47, 0.50); am.position = Vector3(0, 0.68, 0); altar.add_child(am)
 	var orb_mat := StandardMaterial3D.new(); orb_mat.albedo_color = Color(0.32, 0.88, 1.0); orb_mat.emission_enabled = true; orb_mat.emission = Color(0.32, 0.88, 1.0); orb_mat.emission_energy_multiplier = 2.2
-	_weather_orb = MeshInstance3D.new(); var om := SphereMesh.new(); om.radius = 0.42
+	_weather_orb = MeshInstance3D.new(); var om := SphereMesh.new(); om.radius = 0.42; om.height = 0.84; om.radial_segments = 18; om.rings = 9
 	_weather_orb.mesh = om; _weather_orb.material_override = orb_mat; _weather_orb.position = Vector3(0, 1.85, 0); altar.add_child(_weather_orb)
 	var ab := StaticBody3D.new(); ab.collision_layer = 2; ab.collision_mask = 0; ab.position = Vector3(0, 1.35, 0)
 	var acs := CollisionShape3D.new(); var abox := BoxShape3D.new(); abox.size = Vector3(1.8, 2.4, 1.8); acs.shape = abox; ab.add_child(acs)
@@ -1106,7 +1114,8 @@ func _build_cosmo_forest() -> void:
 		var bm := bush_meshes[bi]
 		if bm == null:
 			continue
-		for _i in range(310):
+		_wrap_mesh_interactive(bm, Color(0.92, 1.0, 0.88), 2.5, 0.72, 0.14, 0.45)
+		for _i in range(360):
 			var wx := rng.randf_range(-132.0, 132.0)
 			var wz := rng.randf_range(-132.0, 132.0)
 			if _is_near_road_or_track(wx, wz, 3.2): continue
@@ -1119,6 +1128,24 @@ func _build_cosmo_forest() -> void:
 			btfs.append(tf)
 		if btfs.size() > 0:
 			_bush_mms.append_array(_populate_chunked_mm("Bush" + str(bi), bm, null, btfs, true, 85.0, 135.0, 4))
+
+	var shrub_raw := _extract_merged_mesh("res://assets/models/shrub_01/shrub_01.gltf")
+	if shrub_raw:
+		var shrub_mesh := _decimate_mesh_grid(shrub_raw, 0.055)
+		var s_h := maxf(shrub_mesh.get_aabb().size.y, 0.30)
+		var norm_s := clampf(1.25 / s_h, 0.35, 2.2)
+		_wrap_mesh_interactive(shrub_mesh, Color(0.92, 1.0, 0.88), 2.4, 0.72, 0.14, 0.42)
+		var ph_tfs: Array[Transform3D] = []
+		for _i in range(180):
+			var wx := rng.randf_range(-124.0, 124.0)
+			var wz := rng.randf_range(-124.0, 124.0)
+			if _is_near_road_or_track(wx, wz, 3.4): continue
+			var h := sample_height(wx, wz)
+			if h < WATER_LEVEL + 0.55 or h > 16.5: continue
+			var sc := norm_s * rng.randf_range(0.82, 1.35)
+			ph_tfs.append(Transform3D(Basis.from_euler(Vector3(0, rng.randf() * TAU, 0)).scaled(Vector3(sc, sc, sc)), Vector3(wx, h - 0.06, wz)))
+		if ph_tfs.size() > 0:
+			_bush_mms.append_array(_populate_chunked_mm("PolyShrub", shrub_mesh, null, ph_tfs, true, 82.0, 125.0, 4))
 
 
 func _build_simple_grass_and_plants(player: Node3D) -> void:
@@ -1170,6 +1197,7 @@ func _build_simple_grass_and_plants(player: Node3D) -> void:
 			sg_node.set("optimization_by_distance", false)
 			sg_node.visibility_range_end = 62.0
 			sg_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			sg_node.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 			_simple_grass_chunks.append(sg_node)
 
 		var sg_singleton := get_node_or_null("/root/SimpleGrass")
@@ -1178,53 +1206,115 @@ func _build_simple_grass_and_plants(player: Node3D) -> void:
 			if player:
 				sg_singleton.call("set_player_position", player.global_position)
 
-	# 2. ALL 4 PolyHaven 3D Fern Variants scattered naturally
+	# 2. ALL 4 PolyHaven 3D Fern Variants (prominent forest understory + interactive player/car bend)
+	var fern_tints := [
+		Color(0.92, 1.02, 0.88),
+		Color(0.84, 0.98, 0.78),
+		Color(1.00, 0.96, 0.80),
+		Color(0.88, 1.00, 0.94)
+	]
+	var fern_idx := 0
 	for f_name: String in ["fern_02_a", "fern_02_b", "fern_02_c", "fern_02_d"]:
 		var fmesh := _extract_named_mesh("res://assets/models/fern_02/fern_02.gltf", f_name)
-		if fmesh == null: continue
+		if fmesh == null:
+			fern_idx += 1
+			continue
+		_wrap_mesh_interactive(fmesh, fern_tints[fern_idx % fern_tints.size()], 2.1, 0.68, 0.14, 0.45)
+		fern_idx += 1
 		var fern_tfs: Array[Transform3D] = []
-		for _i in range(360):
+		for _i in range(480):
 			var wx := rng.randf_range(-108.0, 108.0)
 			var wz := rng.randf_range(-108.0, 108.0)
-			if _is_near_road_or_track(wx, wz, 2.8): continue
+			if _is_near_road_or_track(wx, wz, 2.6): continue
 			var h := sample_height(wx, wz)
-			if h < WATER_LEVEL + 0.55 or h > 15.5: continue
-			var sc := rng.randf_range(0.90, 1.85)
+			if h < WATER_LEVEL + 0.50 or h > 15.8: continue
+			var sc := rng.randf_range(0.95, 1.95)
 			fern_tfs.append(Transform3D(Basis.from_euler(Vector3(0, rng.randf() * TAU, 0)).scaled(Vector3(sc, sc, sc)), Vector3(wx, h - 0.02, wz)))
-		_fern_mms.append_array(_populate_chunked_mm("Fern_" + f_name, fmesh, null, fern_tfs, false, 52.0, 108.0, 4))
+		_fern_mms.append_array(_populate_chunked_mm("Fern_" + f_name, fmesh, null, fern_tfs, false, 54.0, 108.0, 4, true))
 
-	# 3. 6 Distinct Gazania Wildflower Species in organic meadow patches!
+	# 3. Diverse Meadow Flora (Blue Lupines, White Chamomile, Crimson Poppies & gentle Gazanias — not a sunflower field!)
+	var gaz_idx := 0
 	for fl_name: String in ["flower_gazania_a_LOD0", "flower_gazania_b_LOD0", "flower_gazania_c_LOD0", "flower_gazania_d_LOD0", "flower_gazania_e_LOD0", "flower_gazania_f_LOD0"]:
 		var flm := _extract_named_mesh("res://assets/models/flower_gazania/flower_gazania.gltf", fl_name)
-		if flm == null: continue
+		if flm == null:
+			gaz_idx += 1
+			continue
+		_wrap_mesh_interactive(flm, Color(0.98, 0.94, 0.88), 1.95, 0.68, 0.16, 0.0)
+		gaz_idx += 1
 		var fl_tfs: Array[Transform3D] = []
-		for _c in range(60):
+		for _c in range(28):
 			var cx := rng.randf_range(-92.0, 92.0)
 			var cz := rng.randf_range(-92.0, 92.0)
-			for _k in range(6):
-				var wx := cx + rng.randf_range(-3.8, 3.8)
-				var wz := cz + rng.randf_range(-3.8, 3.8)
+			for _k in range(4):
+				var wx := cx + rng.randf_range(-3.4, 3.4)
+				var wz := cz + rng.randf_range(-3.4, 3.4)
 				if _is_near_road_or_track(wx, wz, 2.5): continue
 				var h := sample_height(wx, wz)
 				if h < WATER_LEVEL + 0.50 or h > 14.0: continue
-				var sc := rng.randf_range(1.4, 2.8)
+				var sc := rng.randf_range(0.65, 1.18)
 				fl_tfs.append(Transform3D(Basis.from_euler(Vector3(0, rng.randf() * TAU, 0)).scaled(Vector3(sc, sc, sc)), Vector3(wx, h - 0.01, wz)))
-		_flower_mms.append_array(_populate_chunked_mm("Flower_" + fl_name, flm, null, fl_tfs, false, 48.0, 95.0, 4))
+		if fl_tfs.size() > 0:
+			_flower_mms.append_array(_populate_chunked_mm("Flower_" + fl_name, flm, null, fl_tfs, false, 48.0, 95.0, 4, true))
 
-	# 4. 5 Varied Grass Clump Species (not 1 uniform mesh!)
+	var wild_specs := [
+		["BlueLupine", 0, Color(0.32, 0.40, 0.95), 54, 6, Vector2(0.85, 1.45)],
+		["WhiteChamomile", 1, Color(0.97, 0.96, 0.90), 58, 7, Vector2(0.80, 1.38)],
+		["CrimsonPoppy", 2, Color(0.88, 0.20, 0.30), 46, 5, Vector2(0.82, 1.35)]
+	]
+	for ws_def: Array in wild_specs:
+		var wm := _make_wildflower_mesh(ws_def[2] as Color, int(ws_def[1]))
+		var wtfs: Array[Transform3D] = []
+		for _c in range(int(ws_def[3])):
+			var cx := rng.randf_range(-94.0, 94.0)
+			var cz := rng.randf_range(-94.0, 94.0)
+			for _k in range(int(ws_def[4])):
+				var wx := cx + rng.randf_range(-3.8, 3.8)
+				var wz := cz + rng.randf_range(-3.8, 3.8)
+				if _is_near_road_or_track(wx, wz, 2.4): continue
+				var h := sample_height(wx, wz)
+				if h < WATER_LEVEL + 0.45 or h > 15.2: continue
+				var sr: Vector2 = ws_def[5]
+				var sc := rng.randf_range(sr.x, sr.y)
+				wtfs.append(Transform3D(Basis.from_euler(Vector3(0, rng.randf() * TAU, 0)).scaled(Vector3(sc, sc, sc)), Vector3(wx, h - 0.01, wz)))
+		if wtfs.size() > 0:
+			_flower_mms.append_array(_populate_chunked_mm(str(ws_def[0]), wm, null, wtfs, false, 52.0, 96.0, 4, true))
+
+	# 4. 5 Varied Grass Clump Species + PolyHaven Moss Clusters
 	for cl_name: String in ["grass_medium_01_tall_a_LOD0", "grass_medium_01_tall_b_LOD0", "grass_medium_01_mid_a_LOD0", "grass_medium_01_large_a_LOD0", "grass_medium_01_small_a_LOD0"]:
 		var clm := _extract_named_mesh("res://assets/models/grass_medium_01/grass_medium_01.gltf", cl_name)
 		if clm == null: continue
+		_wrap_mesh_interactive(clm, Color(0.90, 1.02, 0.84), 2.0, 0.65, 0.16, 0.36)
 		var cl_tfs: Array[Transform3D] = []
-		for _i in range(680):
+		for _i in range(740):
 			var wx := rng.randf_range(-98.0, 98.0)
 			var wz := rng.randf_range(-98.0, 98.0)
 			if _is_near_road_or_track(wx, wz, 2.4): continue
 			var h := sample_height(wx, wz)
 			if h < WATER_LEVEL + 0.42 or h > 15.0: continue
-			var sc := rng.randf_range(1.7, 3.4)
+			var sc := rng.randf_range(1.6, 3.2)
 			cl_tfs.append(Transform3D(Basis.from_euler(Vector3(0, rng.randf() * TAU, 0)).scaled(Vector3(sc, sc, sc)), Vector3(wx, h - 0.02, wz)))
-		_grass_clump_mms.append_array(_populate_chunked_mm("GrassClump_" + cl_name, clm, null, cl_tfs, false, 52.0, 98.0, 4))
+		_grass_clump_mms.append_array(_populate_chunked_mm("GrassClump_" + cl_name, clm, null, cl_tfs, false, 52.0, 98.0, 4, true))
+
+	var moss_raw := _extract_merged_mesh("res://assets/models/moss_01/moss_01.gltf")
+	if moss_raw:
+		var moss_mesh := _decimate_mesh_grid(moss_raw, 0.03) if moss_raw.get_faces().size() > 2400 else moss_raw
+		var mw := maxf(moss_mesh.get_aabb().size.x, 0.25)
+		var norm_m := clampf(0.85 / mw, 0.4, 2.5)
+		_wrap_mesh_interactive(moss_mesh, Color(0.84, 0.98, 0.78), 1.6, 0.25, 0.04, 0.0)
+		var moss_tfs: Array[Transform3D] = []
+		for _c in range(42):
+			var cx := rng.randf_range(-104.0, 104.0)
+			var cz := rng.randf_range(-104.0, 104.0)
+			for _k in range(5):
+				var wx := cx + rng.randf_range(-3.2, 3.2)
+				var wz := cz + rng.randf_range(-3.2, 3.2)
+				if _is_near_road_or_track(wx, wz, 2.6): continue
+				var h := sample_height(wx, wz)
+				if h < WATER_LEVEL + 0.15 or h > 15.5: continue
+				var sc := norm_m * rng.randf_range(0.75, 1.45)
+				moss_tfs.append(Transform3D(Basis.from_euler(Vector3(rng.randf_range(-0.1, 0.1), rng.randf() * TAU, rng.randf_range(-0.1, 0.1))).scaled(Vector3(sc, sc * 0.85, sc)), Vector3(wx, h - 0.02, wz)))
+		if moss_tfs.size() > 0:
+			_fern_mms.append_array(_populate_chunked_mm("PolyMoss", moss_mesh, null, moss_tfs, false, 48.0, 104.0, 4, true))
 
 	# 5. Floating Lake Water Lilies ("латаття") & Organic Marsh Reed Clusters (never contour lines!)
 	var lily_pad := CylinderMesh.new(); lily_pad.top_radius = 0.42; lily_pad.bottom_radius = 0.42; lily_pad.height = 0.03; lily_pad.radial_segments = 9
@@ -1240,7 +1330,7 @@ func _build_simple_grass_and_plants(player: Node3D) -> void:
 				var sc := rng.randf_range(0.65, 1.45)
 				lily_tfs.append(Transform3D(Basis.from_euler(Vector3(0, rng.randf() * TAU, 0)).scaled(Vector3(sc, 1.0, sc)), Vector3(lx, WATER_LEVEL + 0.03, lz)))
 	if lily_tfs.size() > 0:
-		_flower_mms.append_array(_populate_chunked_mm("WaterLily", lily_pad, lily_mat, lily_tfs, false, 65.0, 120.0, 3))
+		_flower_mms.append_array(_populate_chunked_mm("WaterLily", lily_pad, lily_mat, lily_tfs, false, 65.0, 120.0, 3, true))
 
 	# 5b. Swaying Underwater Lake Algae / Kelp Tufts ("водорослі") on Lake Beds
 	var algae_blade := CylinderMesh.new()
@@ -1281,10 +1371,10 @@ func _build_simple_grass_and_plants(player: Node3D) -> void:
 						var sx := rng.randf_range(0.8, 1.4)
 						algae_tfs.append(Transform3D(Basis.from_euler(Vector3(rng.randf_range(-0.18, 0.18), rng.randf() * TAU, rng.randf_range(-0.18, 0.18))).scaled(Vector3(sx, sy, sx)), Vector3(bx, bh + sy * 0.45, bz)))
 	if algae_tfs.size() > 0:
-		_flower_mms.append_array(_populate_chunked_mm("UnderwaterAlgae", algae_blade, algae_mat, algae_tfs, false, 70.0, 120.0, 3))
+		_flower_mms.append_array(_populate_chunked_mm("UnderwaterAlgae", algae_blade, algae_mat, algae_tfs, false, 70.0, 120.0, 3, true))
 
 	# Forest Red-Cap Mushrooms scattered randomly on forest floor
-	var sh_cap := SphereMesh.new(); sh_cap.radius = 0.18; sh_cap.height = 0.16; sh_cap.radial_segments = 8
+	var sh_cap := SphereMesh.new(); sh_cap.radius = 0.18; sh_cap.height = 0.16; sh_cap.radial_segments = 8; sh_cap.rings = 5
 	var sh_mat := StandardMaterial3D.new(); sh_mat.albedo_color = Color(0.82, 0.16, 0.14); sh_mat.roughness = 0.55
 	var sh_tfs: Array[Transform3D] = []
 	for _m in range(140):
@@ -1296,7 +1386,7 @@ func _build_simple_grass_and_plants(player: Node3D) -> void:
 			var sc := rng.randf_range(0.6, 1.5)
 			sh_tfs.append(Transform3D(Basis.IDENTITY.scaled(Vector3(sc, sc, sc)), Vector3(wx, h + 0.08 * sc, wz)))
 	if sh_tfs.size() > 0:
-		_flower_mms.append_array(_populate_chunked_mm("ForestMushroom", sh_cap, sh_mat, sh_tfs, false, 45.0, 95.0, 3))
+		_flower_mms.append_array(_populate_chunked_mm("ForestMushroom", sh_cap, sh_mat, sh_tfs, false, 45.0, 95.0, 3, true))
 
 	# 6. Clustered Organic Lakeside Reeds (tufts, NOT rigid contour rows!)
 	var reed_mesh := CylinderMesh.new()
@@ -1309,6 +1399,7 @@ func _build_simple_grass_and_plants(player: Node3D) -> void:
 	reed_mat.set_shader_parameter("color_base", Color(0.16, 0.28, 0.09))
 	reed_mat.set_shader_parameter("color_tip", Color(0.45, 0.38, 0.16))
 	reed_mat.set_shader_parameter("is_grass_blade", false)
+	reed_mat.set_shader_parameter("is_cattail_reed", true)
 	_foliage_mats.append(reed_mat)
 
 	var reed_tfs: Array[Transform3D] = []
@@ -1326,11 +1417,11 @@ func _build_simple_grass_and_plants(player: Node3D) -> void:
 			if h >= WATER_LEVEL - 0.45 and h <= WATER_LEVEL + 0.65:
 				var sc := rng.randf_range(0.55, 1.38)
 				reed_tfs.append(Transform3D(Basis.from_euler(Vector3(rng.randf_range(-0.14, 0.14), rng.randf() * TAU, rng.randf_range(-0.14, 0.14))).scaled(Vector3(sc, sc, sc)), Vector3(wx, h + 0.60 * sc, wz)))
-	_reed_mm = _populate_mm(MultiMeshInstance3D.new(), reed_mesh, reed_mat, reed_tfs, false)
+	_reed_mm = _populate_mm(MultiMeshInstance3D.new(), reed_mesh, reed_mat, reed_tfs, false, true)
 	_reed_mm.visibility_range_end = 95.0
 
 
-func _populate_chunked_mm(prefix: String, mesh: Mesh, mat: Material, transforms: Array[Transform3D], shadow: bool, vis_end: float, bounds_half: float, grid_n: int) -> Array[MultiMeshInstance3D]:
+func _populate_chunked_mm(prefix: String, mesh: Mesh, mat: Material, transforms: Array[Transform3D], shadow: bool, vis_end: float, bounds_half: float, grid_n: int, disable_gi: bool = false) -> Array[MultiMeshInstance3D]:
 	var cells: Dictionary = {}
 	var step := (bounds_half * 2.0) / float(grid_n)
 	for tf in transforms:
@@ -1344,7 +1435,7 @@ func _populate_chunked_mm(prefix: String, mesh: Mesh, mat: Material, transforms:
 	var out: Array[MultiMeshInstance3D] = []
 	for k in cells.keys():
 		var c_tfs: Array[Transform3D] = cells[k]
-		var inst := _populate_mm(MultiMeshInstance3D.new(), mesh, mat, c_tfs, shadow)
+		var inst := _populate_mm(MultiMeshInstance3D.new(), mesh, mat, c_tfs, shadow, disable_gi)
 		inst.name = "%s_%d_%d" % [prefix, k.x, k.y]
 		if vis_end > 0.0:
 			inst.visibility_range_end = vis_end
@@ -1352,7 +1443,7 @@ func _populate_chunked_mm(prefix: String, mesh: Mesh, mat: Material, transforms:
 	return out
 
 
-func _populate_mm(mm_inst: MultiMeshInstance3D, mesh: Mesh, mat: Material, transforms: Array[Transform3D], shadow: bool) -> MultiMeshInstance3D:
+func _populate_mm(mm_inst: MultiMeshInstance3D, mesh: Mesh, mat: Material, transforms: Array[Transform3D], shadow: bool, disable_gi: bool = false) -> MultiMeshInstance3D:
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = mesh
@@ -1363,8 +1454,152 @@ func _populate_mm(mm_inst: MultiMeshInstance3D, mesh: Mesh, mat: Material, trans
 	if mat:
 		mm_inst.material_override = mat
 	mm_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadow else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	if disable_gi:
+		mm_inst.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	add_child(mm_inst)
 	return mm_inst
+
+
+func _wrap_mesh_interactive(mesh: ArrayMesh, tint: Color, bend_radius: float, bend_strength: float, wind_strength: float, force_cutoff: float) -> void:
+	if mesh == null:
+		return
+	var plant_shader := load("res://shaders/interactive_plant.gdshader") as Shader
+	if plant_shader == null:
+		return
+	var mesh_h := maxf(mesh.get_aabb().size.y, 0.25)
+	for s: int in range(mesh.get_surface_count()):
+		var src_mat: Material = mesh.surface_get_material(s)
+		var sh_mat := ShaderMaterial.new()
+		sh_mat.shader = plant_shader
+		var final_tint := tint
+		var cutoff := force_cutoff
+		if src_mat is StandardMaterial3D:
+			var sm := src_mat as StandardMaterial3D
+			final_tint = sm.albedo_color * tint
+			if sm.albedo_texture:
+				sh_mat.set_shader_parameter("use_albedo_tex", true)
+				sh_mat.set_shader_parameter("albedo_tex", sm.albedo_texture)
+			if sm.normal_enabled and sm.normal_texture:
+				sh_mat.set_shader_parameter("use_normal_tex", true)
+				sh_mat.set_shader_parameter("normal_tex", sm.normal_texture)
+			if cutoff <= 0.01 and (sm.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR or sm.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA or sm.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_HASH):
+				cutoff = sm.alpha_scissor_threshold if sm.alpha_scissor_threshold > 0.05 else 0.40
+		elif src_mat is ShaderMaterial:
+			var ssm := src_mat as ShaderMaterial
+			var alb = ssm.get_shader_parameter("albedo")
+			if alb is Color:
+				final_tint = (alb as Color) * tint
+			var atex = ssm.get_shader_parameter("albedo_texture")
+			if atex is Texture2D:
+				sh_mat.set_shader_parameter("use_albedo_tex", true)
+				sh_mat.set_shader_parameter("albedo_tex", atex)
+			var ath = ssm.get_shader_parameter("alpha_scissor_threshold")
+			if cutoff <= 0.01 and ath != null:
+				cutoff = float(ath)
+		sh_mat.set_shader_parameter("albedo_tint", final_tint)
+		sh_mat.set_shader_parameter("alpha_cutoff", cutoff)
+		sh_mat.set_shader_parameter("mesh_height", mesh_h)
+		sh_mat.set_shader_parameter("bend_radius", bend_radius)
+		sh_mat.set_shader_parameter("bend_strength", bend_strength)
+		sh_mat.set_shader_parameter("wind_strength", wind_strength)
+		mesh.surface_set_material(s, sh_mat)
+		_foliage_mats.append(sh_mat)
+
+
+func _make_wildflower_mesh(bloom_col: Color, style: int) -> ArrayMesh:
+	var plant_shader := load("res://shaders/interactive_plant.gdshader") as Shader
+	var stem_st := SurfaceTool.new()
+	stem_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var bloom_st := SurfaceTool.new()
+	bloom_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+	var offsets := [Vector2(0.0, 0.0), Vector2(0.11, 0.07), Vector2(-0.10, 0.08)]
+	var max_h := 0.58 if style == 0 else 0.42
+	for si: int in range(offsets.size()):
+		var ox: float = offsets[si].x
+		var oz: float = offsets[si].y
+		var h: float = max_h * (1.0 if si == 0 else (0.82 if si == 1 else 0.72))
+		var tilt_x := ox * 0.45
+		var tilt_z := oz * 0.45
+		# Tapered quad-prism stem + 2 crossed basal leaves
+		for a_i: int in range(2):
+			var ang := float(a_i) * PI * 0.5
+			var rx := cos(ang) * 0.016
+			var rz := sin(ang) * 0.016
+			var p0 := Vector3(ox - rx, 0.0, oz - rz)
+			var p1 := Vector3(ox + rx, 0.0, oz + rz)
+			var p2 := Vector3(ox + tilt_x + rx * 0.5, h, oz + tilt_z + rz * 0.5)
+			var p3 := Vector3(ox + tilt_x - rx * 0.5, h, oz + tilt_z - rz * 0.5)
+			stem_st.add_vertex(p0); stem_st.add_vertex(p1); stem_st.add_vertex(p2)
+			stem_st.add_vertex(p0); stem_st.add_vertex(p2); stem_st.add_vertex(p3)
+		for l_i: int in range(2):
+			var la := float(l_i) * 2.1 + float(si)
+			var ld := Vector3(cos(la), 0.25, sin(la)).normalized()
+			var lr := Vector3(-ld.z, 0.0, ld.x) * 0.045
+			var b0 := Vector3(ox, 0.04, oz)
+			stem_st.add_vertex(b0); stem_st.add_vertex(b0 + ld * 0.14 + lr); stem_st.add_vertex(b0 + ld * 0.24)
+			stem_st.add_vertex(b0); stem_st.add_vertex(b0 + ld * 0.24); stem_st.add_vertex(b0 + ld * 0.14 - lr)
+
+		var top_p := Vector3(ox + tilt_x, h, oz + tilt_z)
+		if style == 0:
+			# Lupine / delphinium vertical floret spike
+			for f_i: int in range(5):
+				var fy := float(f_i) * 0.055
+				var fa := float(f_i) * 1.45 + float(si)
+				var fc := top_p - Vector3(0.0, fy, 0.0) + Vector3(cos(fa), 0.0, sin(fa)) * 0.032
+				var fr := 0.042 * (1.0 - float(f_i) * 0.08)
+				bloom_st.add_vertex(fc + Vector3(-fr, -fr * 0.6, 0.0))
+				bloom_st.add_vertex(fc + Vector3(fr, -fr * 0.6, 0.0))
+				bloom_st.add_vertex(fc + Vector3(0.0, fr, fr * 0.4))
+				bloom_st.add_vertex(fc + Vector3(0.0, -fr * 0.6, -fr))
+				bloom_st.add_vertex(fc + Vector3(0.0, -fr * 0.6, fr))
+				bloom_st.add_vertex(fc + Vector3(fr * 0.4, fr, 0.0))
+		elif style == 1:
+			# White chamomile star petals
+			for p_i: int in range(6):
+				var pa := float(p_i) * TAU / 6.0 + float(si)
+				var pd := Vector3(cos(pa), 0.04, sin(pa))
+				var pr := Vector3(-pd.z, 0.0, pd.x) * 0.028
+				bloom_st.add_vertex(top_p); bloom_st.add_vertex(top_p + pd * 0.085 + pr); bloom_st.add_vertex(top_p + pd * 0.11)
+				bloom_st.add_vertex(top_p); bloom_st.add_vertex(top_p + pd * 0.11); bloom_st.add_vertex(top_p + pd * 0.085 - pr)
+		else:
+			# Crimson poppy cup petals
+			for p_i: int in range(4):
+				var pa := float(p_i) * TAU / 4.0 + float(si)
+				var pd := Vector3(cos(pa), 0.55, sin(pa)).normalized()
+				var pr := Vector3(-pd.z, 0.0, pd.x) * 0.055
+				bloom_st.add_vertex(top_p); bloom_st.add_vertex(top_p + pd * 0.09 + pr); bloom_st.add_vertex(top_p + pd * 0.10 - pr)
+
+	stem_st.generate_normals()
+	bloom_st.generate_normals()
+	var mesh := stem_st.commit()
+	var bloom_arr := bloom_st.commit_to_arrays()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, bloom_arr)
+
+	if plant_shader:
+		var stem_m := ShaderMaterial.new()
+		stem_m.shader = plant_shader
+		stem_m.set_shader_parameter("albedo_tint", Color(0.18, 0.40, 0.14))
+		stem_m.set_shader_parameter("alpha_cutoff", 0.0)
+		stem_m.set_shader_parameter("mesh_height", max_h)
+		stem_m.set_shader_parameter("bend_radius", 2.0)
+		stem_m.set_shader_parameter("bend_strength", 0.72)
+		stem_m.set_shader_parameter("wind_strength", 0.16)
+		mesh.surface_set_material(0, stem_m)
+		_foliage_mats.append(stem_m)
+
+		var bloom_m := ShaderMaterial.new()
+		bloom_m.shader = plant_shader
+		bloom_m.set_shader_parameter("albedo_tint", bloom_col)
+		bloom_m.set_shader_parameter("alpha_cutoff", 0.0)
+		bloom_m.set_shader_parameter("mesh_height", max_h)
+		bloom_m.set_shader_parameter("bend_radius", 2.0)
+		bloom_m.set_shader_parameter("bend_strength", 0.74)
+		bloom_m.set_shader_parameter("wind_strength", 0.16)
+		bloom_m.set_shader_parameter("sss_strength", 0.65)
+		mesh.surface_set_material(1, bloom_m)
+		_foliage_mats.append(bloom_m)
+	return mesh
 
 
 func _apply_graphics_settings() -> void:

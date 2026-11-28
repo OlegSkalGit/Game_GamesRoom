@@ -27,6 +27,10 @@ var _tl_bulbs: Dictionary = {"red": [], "amber": [], "green": []}
 var _tl_mats: Dictionary = {}
 var _race_mode: String = "idle" # "idle", "countdown", "racing"
 var player_progress_dist: float = 0.0
+var player_driving: bool = false
+var player_track_s: float = 0.0
+var player_lat: float = 0.0
+var player_speed: float = 0.0
 var _race_elapsed: float = 0.0
 static var _f1_tex_cache: Dictionary = {}
 
@@ -581,7 +585,7 @@ func _build_track_geometry_and_collision() -> void:
 	add_child(_rail_mesh_inst)
 
 	if pillar_tfs.size() > 0:
-		var pm := CylinderMesh.new(); pm.top_radius = 0.62; pm.bottom_radius = 0.85; pm.height = 1.0
+		var pm := CylinderMesh.new(); pm.top_radius = 0.62; pm.bottom_radius = 0.85; pm.height = 1.0; pm.radial_segments = 12; pm.rings = 1
 		var p_mat := StandardMaterial3D.new()
 		p_mat.albedo_color = Color(0.42, 0.43, 0.46)
 		p_mat.roughness = 0.82
@@ -653,10 +657,10 @@ func _build_loop_neon_rings(lamp_positions: Array[Vector3]) -> void:
 	neon.emission_enabled = true
 	neon.emission = Color(0.18, 0.88, 1.0)
 	neon.emission_energy_multiplier = 2.6
+	var arch := TorusMesh.new(); arch.inner_radius = 6.0; arch.outer_radius = 6.38; arch.rings = 28; arch.ring_segments = 10
 	for i: int in range(frames.size()):
 		var f: Dictionary = frames[i]
 		if bool(f["is_loop"]) and i % 6 == 0:
-			var arch := TorusMesh.new(); arch.inner_radius = 6.0; arch.outer_radius = 6.38
 			var mi := MeshInstance3D.new(); mi.mesh = arch; mi.material_override = neon
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 			var fw: Vector3 = f["fwd"]; var rt: Vector3 = f["right"]; var up: Vector3 = f["up"]
@@ -725,6 +729,50 @@ func _build_pit_stop_station() -> void:
 	var gantry_bar := BoxMesh.new(); gantry_bar.size = Vector3(1.1, 0.9, 13.6)
 	var tmi := MeshInstance3D.new(); tmi.mesh = gantry_bar; tmi.material_override = steel; tmi.position = Vector3(0.0, 5.9, 0.0)
 	pit.add_child(tmi)
+
+	# Crisp PBR Road Markings via Godot Decal (Checkered Start/Finish Line & Pit Bay Zone)
+	var chk_img := Image.create(64, 256, false, Image.FORMAT_RGBA8)
+	for y: int in range(256):
+		for x: int in range(64):
+			var col := Color(0, 0, 0, 0)
+			if x < 6 or x >= 58:
+				col = Color(0.92, 0.16, 0.14, 0.92)
+			else:
+				var white_cell := ((x / 16) + (y / 16)) % 2 == 0
+				col = Color(0.96, 0.96, 0.95, 0.95) if white_cell else Color(0.08, 0.08, 0.09, 0.95)
+			chk_img.set_pixel(x, y, col)
+	chk_img.generate_mipmaps()
+	var start_decal := Decal.new()
+	start_decal.name = "StartFinishDecal"
+	start_decal.texture_albedo = ImageTexture.create_from_image(chk_img)
+	start_decal.size = Vector3(2.8, 0.65, 11.4)
+	start_decal.position = Vector3(0.0, 0.12, 0.0)
+	start_decal.upper_fade = 0.08
+	start_decal.lower_fade = 0.08
+	start_decal.albedo_mix = 0.94
+	pit.add_child(start_decal)
+
+	var pit_img := Image.create(256, 128, false, Image.FORMAT_RGBA8)
+	for y: int in range(128):
+		for x: int in range(256):
+			var col := Color(0, 0, 0, 0)
+			var edge := (x < 10 or x >= 246 or y < 10 or y >= 118)
+			if edge:
+				var stripe := ((x + y) / 14) % 2 == 0
+				col = Color(0.95, 0.72, 0.12, 0.90) if stripe else Color(0.12, 0.12, 0.14, 0.90)
+			elif y > 54 and y < 74 and (x > 36 and x < 220):
+				col = Color(0.92, 0.22, 0.16, 0.55)
+			pit_img.set_pixel(x, y, col)
+	pit_img.generate_mipmaps()
+	var pit_decal := Decal.new()
+	pit_decal.name = "PitZoneDecal"
+	pit_decal.texture_albedo = ImageTexture.create_from_image(pit_img)
+	pit_decal.size = Vector3(13.8, 0.50, 5.4)
+	pit_decal.position = Vector3(0.0, 0.16, -8.4)
+	pit_decal.upper_fade = 0.08
+	pit_decal.lower_fade = 0.08
+	pit_decal.albedo_mix = 0.90
+	pit.add_child(pit_decal)
 
 	# Overhead 3D Racing Traffic Light ("Світлофор") visible cleanly from Starting Grid (looking +X toward X=0)!
 	var tl_box := BoxMesh.new(); tl_box.size = Vector3(0.55, 2.2, 3.6)
@@ -1239,7 +1287,9 @@ func _spawn_ai_rivals() -> void:
 			"lap": 1,
 			"finished": false,
 			"finish_time": 0.0,
-			"weave_phase": float(i) * 1.57
+			"weave_phase": float(i) * 1.57,
+			"lane_pref": -1.0 if (i % 2 == 0) else 1.0,
+			"avoid_lat": 0.0
 		})
 
 
@@ -1259,6 +1309,7 @@ func prepare_race_start() -> void:
 		r["progress_dist"] = -back
 		r["lat"] = lane
 		r["base_lat"] = lane
+		r["avoid_lat"] = 0.0
 		r["cur_spd"] = 0.0
 		r["lap"] = 1
 		r["finished"] = false
@@ -1294,6 +1345,7 @@ func _sync_rival_transform(r: Dictionary, delta: float) -> void:
 
 
 func set_player_driving(active: bool) -> void:
+	player_driving = active
 	if pit_parked_car:
 		pit_parked_car.visible = not active
 	if not active:
@@ -1398,9 +1450,19 @@ func _process(delta: float) -> void:
 	if _race_mode == "racing":
 		_race_elapsed += delta
 
+	var snap: Array[Dictionary] = []
+	for r_s: Dictionary in rivals:
+		snap.append({
+			"s": float(r_s["s"]),
+			"lat": float(r_s["lat"]),
+			"spd": float(r_s["cur_spd"])
+		})
+
 	for i: int in range(rivals.size()):
 		var r: Dictionary = rivals[i]
-		var sp_now := sample_at_s(float(r["s"]))
+		var my_s := float(snap[i]["s"])
+		var my_lat := float(snap[i]["lat"])
+		var sp_now := sample_at_s(my_s)
 		var target_spd := float(r["top_spd"])
 		if not sp_now.is_empty():
 			if bool(sp_now["is_boost"]) or bool(sp_now["is_crest_boost"]):
@@ -1412,22 +1474,50 @@ func _process(delta: float) -> void:
 			if bool(r["finished"]):
 				target_spd *= 0.65
 			else:
-				# Dynamic neck-and-neck slipstream catch-up + periodic DRS overtake surges
+				# Dynamic neck-and-neck slipstream catch-up + smooth DRS overtake surges
 				var gap := player_progress_dist - float(r["progress_dist"])
 				if gap > 5.0:
 					target_spd += clampf((gap - 5.0) * 0.45, 0.0, 16.5)
 				elif gap < -16.0:
 					target_spd += clampf((gap + 16.0) * 0.34, -8.5, 0.0)
 				var surge := sin(_race_elapsed * (0.48 + float(i) * 0.11) + float(i) * 1.7)
-				if surge > 0.50 and absf(gap) < 35.0:
-					target_spd += 5.5 + 3.5 * clampf((surge - 0.50) * 2.0, 0.0, 1.0)
+				if surge > 0.35 and absf(gap) < 35.0:
+					target_spd += smoothstep(0.35, 0.85, surge) * 7.5
 				target_spd = clampf(target_spd, 34.0, 68.0)
 
-		var cur_spd := move_toward(float(r["cur_spd"]), target_spd, delta * 44.0)
+		# Smooth traffic lane selection & following distance against AI rivals and player car (prevents overlap/jitter!)
+		var steer_bias := 0.0
+		var obstacles: Array[Dictionary] = []
+		for j: int in range(snap.size()):
+			if j != i:
+				obstacles.append(snap[j])
+		if player_driving:
+			obstacles.append({"s": player_track_s, "lat": player_lat, "spd": player_speed})
+
+		for obs: Dictionary in obstacles:
+			var ds_rel := wrapf(float(obs["s"]) - my_s, -total_length * 0.5, total_length * 0.5)
+			var obs_lat := float(obs["lat"])
+			var dlat := my_lat - obs_lat
+			if ds_rel > -4.5 and ds_rel < 15.0 and absf(dlat) < 2.45:
+				var prox_w := clampf(1.0 - maxf(ds_rel, 0.0) / 15.0, 0.0, 1.0)
+				var pass_side := float(r.get("lane_pref", 1.0))
+				if absf(obs_lat) > 0.45:
+					pass_side = -signf(obs_lat)
+				elif absf(dlat) > 0.35:
+					pass_side = signf(dlat)
+				steer_bias += pass_side * (1.6 + prox_w * 1.8)
+				if ds_rel > 0.2 and ds_rel < 6.8 and absf(dlat) < 1.35:
+					var blk_k := clampf(1.0 - (ds_rel - 3.2) / 3.6, 0.0, 1.0)
+					target_spd = minf(target_spd, lerpf(target_spd, maxf(float(obs["spd"]) * 0.96, 26.0), blk_k))
+
+		var next_avoid := lerpf(float(r.get("avoid_lat", 0.0)), clampf(steer_bias, -2.5, 2.5), clampf(delta * 2.8, 0.0, 1.0))
+		r["avoid_lat"] = next_avoid
+
+		var cur_spd := move_toward(float(r["cur_spd"]), target_spd, delta * 34.0)
 		r["cur_spd"] = cur_spd
 
 		var ds := cur_spd * delta
-		r["s"] = fposmod(float(r["s"]) + ds, total_length)
+		r["s"] = fposmod(my_s + ds, total_length)
 		if _race_mode == "racing":
 			var prog := float(r["progress_dist"]) + ds
 			r["progress_dist"] = prog
@@ -1435,10 +1525,10 @@ func _process(delta: float) -> void:
 			if not bool(r["finished"]) and prog >= float(LAPS_TOTAL) * total_length:
 				r["finished"] = true
 
-		# Subtle smooth racing line & overtaking weave on banked turns
-		r["weave_phase"] = float(r["weave_phase"]) + delta * 0.45
-		var target_lat := float(r["base_lat"]) + sin(float(r["weave_phase"])) * 0.9
-		r["lat"] = lerpf(float(r["lat"]), clampf(target_lat, -3.4, 3.4), clampf(delta * 2.5, 0.0, 1.0))
+		# Smooth racing line + overtaking offset
+		r["weave_phase"] = float(r["weave_phase"]) + delta * 0.42
+		var target_lat := float(r["base_lat"]) + sin(float(r["weave_phase"])) * 0.65 + next_avoid
+		r["lat"] = lerpf(my_lat, clampf(target_lat, -3.3, 3.3), clampf(delta * 3.2, 0.0, 1.0))
 
 		_sync_rival_transform(r, delta)
 

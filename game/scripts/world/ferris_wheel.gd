@@ -77,12 +77,12 @@ func _build_structure() -> void:
 
 	var leg_len := Vector2(5.6, HUB_Y).length()
 	var leg_ang := rad_to_deg(atan2(5.6, HUB_Y))
-	var leg_mesh := CylinderMesh.new(); leg_mesh.top_radius = 0.20; leg_mesh.bottom_radius = 0.28; leg_mesh.height = leg_len
+	var leg_mesh := CylinderMesh.new(); leg_mesh.top_radius = 0.20; leg_mesh.bottom_radius = 0.28; leg_mesh.height = leg_len; leg_mesh.radial_segments = 14; leg_mesh.rings = 1
 	for sz: float in [-1.62, 1.62]:
 		for sx: float in [-1.0, 1.0]:
 			_add_part(self, leg_mesh, Vector3(sx * 2.8, HUB_Y * 0.5, sz), steel_mat, Vector3(0.0, 0.0, sx * leg_ang))
 			_add_box_col(base_body, Vector3(0.9, 0.7, 0.9), Vector3(sx * 5.6, 0.35, sz), red_steel, self)
-	var axle_mesh := CylinderMesh.new(); axle_mesh.top_radius = 0.34; axle_mesh.bottom_radius = 0.34; axle_mesh.height = 4.0
+	var axle_mesh := CylinderMesh.new(); axle_mesh.top_radius = 0.34; axle_mesh.bottom_radius = 0.34; axle_mesh.height = 4.0; axle_mesh.radial_segments = 16; axle_mesh.rings = 1
 	_add_part(self, axle_mesh, Vector3(0.0, HUB_Y, 0.0), gold_mat, Vector3(90.0, 0.0, 0.0))
 
 	# 2. Walkable Boarding Deck (+Z side at y=0.54m) & Gentle 5-step Stairs down to terrain (y=0.0m)
@@ -104,15 +104,15 @@ func _build_structure() -> void:
 	_rotor.position = Vector3(0.0, HUB_Y, 0.0)
 	add_child(_rotor)
 
-	var hub_m := CylinderMesh.new(); hub_m.top_radius = 0.95; hub_m.bottom_radius = 0.95; hub_m.height = 2.65
+	var hub_m := CylinderMesh.new(); hub_m.top_radius = 0.95; hub_m.bottom_radius = 0.95; hub_m.height = 2.65; hub_m.radial_segments = 18; hub_m.rings = 1
 	_add_part(_rotor, hub_m, Vector3.ZERO, red_steel, Vector3(90.0, 0.0, 0.0))
 
 	var rim_seg_len := 2.0 * WHEEL_RADIUS * sin(PI / 24.0) + 0.08
 	var rim_mesh := BoxMesh.new(); rim_mesh.size = Vector3(0.18, rim_seg_len, 0.14)
 	var inner_seg_len := 2.0 * (WHEEL_RADIUS * 0.68) * sin(PI / 24.0) + 0.06
 	var inner_mesh := BoxMesh.new(); inner_mesh.size = Vector3(0.13, inner_seg_len, 0.11)
-	var bulb_mesh := SphereMesh.new(); bulb_mesh.radius = 0.19; bulb_mesh.height = 0.38
-	var inner_bulb_mesh := SphereMesh.new(); inner_bulb_mesh.radius = 0.14; inner_bulb_mesh.height = 0.28
+	var bulb_mesh := SphereMesh.new(); bulb_mesh.radius = 0.19; bulb_mesh.height = 0.38; bulb_mesh.radial_segments = 12; bulb_mesh.rings = 6
+	var inner_bulb_mesh := SphereMesh.new(); inner_bulb_mesh.radius = 0.14; inner_bulb_mesh.height = 0.28; inner_bulb_mesh.radial_segments = 12; inner_bulb_mesh.rings = 6
 
 	var palette := [
 		Color(1.0, 0.85, 0.24),
@@ -139,8 +139,8 @@ func _build_structure() -> void:
 			for bz_in: float in [-1.19, 1.19]:
 				_add_part(_rotor, inner_bulb_mesh, Vector3(cos(ba) * WHEEL_RADIUS * 0.68, sin(ba) * WHEEL_RADIUS * 0.68, bz_in), bm_in)
 
-	var spoke_mesh := CylinderMesh.new(); spoke_mesh.top_radius = 0.055; spoke_mesh.bottom_radius = 0.055; spoke_mesh.height = WHEEL_RADIUS
-	var cross_mesh := CylinderMesh.new(); cross_mesh.top_radius = 0.065; cross_mesh.bottom_radius = 0.065; cross_mesh.height = 2.28
+	var spoke_mesh := CylinderMesh.new(); spoke_mesh.top_radius = 0.055; spoke_mesh.bottom_radius = 0.055; spoke_mesh.height = WHEEL_RADIUS; spoke_mesh.radial_segments = 10; spoke_mesh.rings = 1
+	var cross_mesh := CylinderMesh.new(); cross_mesh.top_radius = 0.065; cross_mesh.bottom_radius = 0.065; cross_mesh.height = 2.28; cross_mesh.radial_segments = 10; cross_mesh.rings = 1
 	for ci: int in range(CABIN_COUNT):
 		var ca := float(ci) * TAU / float(CABIN_COUNT)
 		for sz: float in [-1.12, 1.12]:
@@ -207,13 +207,13 @@ func _build_structure() -> void:
 
 		# Roof hanger struts up to wheel axle cross-bar at y = HANGER_LEN (2.18m headroom!)
 		var strut_h := HANGER_LEN - 0.12
-		var sm := CylinderMesh.new(); sm.top_radius = 0.04; sm.bottom_radius = 0.04; sm.height = strut_h
+		var sm := CylinderMesh.new(); sm.top_radius = 0.04; sm.bottom_radius = 0.04; sm.height = strut_h; sm.radial_segments = 8; sm.rings = 1
 		for sz: float in [-0.76, 0.76]:
 			for sx: float in [-0.62, 0.62]:
 				_add_part(body, sm, Vector3(sx, strut_h * 0.5 + 0.04, sz), rod_mat)
 		var roof_m := BoxMesh.new(); roof_m.size = Vector3(1.56, 0.10, 1.66)
 		_add_part(body, roof_m, Vector3(0.0, HANGER_LEN - 0.10, 0.0), cmat)
-		var l_sph := SphereMesh.new(); l_sph.radius = 0.10; l_sph.height = 0.20
+		var l_sph := SphereMesh.new(); l_sph.radius = 0.10; l_sph.height = 0.20; l_sph.radial_segments = 10; l_sph.rings = 5
 		_add_part(body, l_sph, Vector3(0.0, HANGER_LEN - 0.22, 0.0), _cabin_lantern_mat)
 
 		_cabins.append({"body": body, "offset": float(ci) * TAU / float(CABIN_COUNT)})

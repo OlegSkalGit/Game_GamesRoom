@@ -56,12 +56,15 @@ var _active_roulette_bets: Dictionary = {}
 
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	_world = WorldBuilder.new()
 	_world.name = "WorldBuilder"
+	_world.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(_world)
 
 	_player = PlayerController.new()
 	_player.name = "Player"
+	_player.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(_player)
 
 	_world.build_world(_player)
@@ -71,6 +74,7 @@ func _ready() -> void:
 
 	_race_car = RaceCarScript.new()
 	_race_car.name = "PlayerRaceCar"
+	_race_car.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(_race_car)
 	_race_car.setup(_world.race_track)
 	_race_car.exit_car_requested.connect(_exit_race)
@@ -116,6 +120,7 @@ func _ready() -> void:
 
 	_minigame_host = MinigameHost.new()
 	_minigame_host.name = "MinigameHost"
+	_minigame_host.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(_minigame_host)
 	_minigame_host.exit_requested.connect(_on_minigame_exit_requested)
 
@@ -123,6 +128,7 @@ func _ready() -> void:
 	_menu = menu_script.new()
 	_menu.name = "MainMenu"
 	add_child(_menu)
+	_menu.visibility_changed.connect(_on_menu_visibility_changed)
 	_menu.new_game_requested.connect(_on_new_game_requested)
 	_menu.resume_requested.connect(_on_resume_requested)
 	_menu.save_game_requested.connect(quick_save)
@@ -137,6 +143,7 @@ func _ready() -> void:
 
 	_intro = IntroSplashScript.new()
 	_intro.name = "IntroSplash"
+	_intro.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(_intro)
 
 
@@ -337,7 +344,7 @@ func _build_hud() -> void:
 	fps_layer.layer = 60
 	add_child(fps_layer)
 	_fps_lbl = Label.new()
-	_fps_lbl.position = Vector2(18, 38)
+	_fps_lbl.position = Vector2(18, 14)
 	_fps_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_fps_lbl.add_theme_font_size_override("font_size", 15)
 	_fps_lbl.add_theme_color_override("font_color", Color(0.62, 0.96, 0.54, 0.95))
@@ -632,6 +639,20 @@ func _input(event: InputEvent) -> void:
 				_pause_to_menu()
 
 
+func _set_world_paused(paused: bool) -> void:
+	if get_tree():
+		get_tree().paused = paused
+
+
+func _on_menu_visibility_changed() -> void:
+	if _menu == null or get_tree() == null:
+		return
+	if not _menu.visible:
+		_set_world_paused(false)
+	elif _menu.is_game_started:
+		_set_world_paused(true)
+
+
 func _pause_to_menu() -> void:
 	_player.set_controls_active(false)
 	_prompt_panel.visible = false
@@ -640,6 +661,7 @@ func _pause_to_menu() -> void:
 	if _quest_journal_panel: _quest_journal_panel.visible = false
 	if _games_map_panel: _games_map_panel.visible = false
 	_menu.open_menu()
+	_set_world_paused(true)
 
 
 func _abort_active_modes() -> void:
@@ -753,9 +775,10 @@ func quick_load() -> bool:
 
 	if _world and _world.weather:
 		_world.weather._process(0.016)
-	_status_lbl.visible = true
+	_set_world_paused(false)
+	_status_lbl.visible = false
 	if _quest_hud_panel:
-		_quest_hud_panel.visible = true
+		_quest_hud_panel.visible = false
 	_update_status_hud("")
 	_refresh_quest_ui()
 	AudioSfx.play_switch()
@@ -779,6 +802,7 @@ func _on_new_game_requested() -> void:
 		_world.casino_room.set_disco_enabled(false)
 	_menu.close_menu()
 	_menu.set_game_started(true)
+	_set_world_paused(false)
 	_player.reset_to_casino_spawn()
 	_player.get_camera().current = true
 	if _world:
@@ -786,30 +810,33 @@ func _on_new_game_requested() -> void:
 		if _world.weather:
 			_world.weather._process(0.016)
 	_player.set_controls_active(true)
-	_status_lbl.visible = true
-	if _quest_hud_panel: _quest_hud_panel.visible = true
+	_status_lbl.visible = false
+	if _quest_hud_panel: _quest_hud_panel.visible = false
 
 
 func _on_resume_requested() -> void:
+	_set_world_paused(false)
 	if _is_driving and _race_car:
 		_race_car._cam.current = true
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	else:
 		_player.get_camera().current = true
 		_player.set_controls_active(true)
-	_status_lbl.visible = true
-	if _quest_hud_panel: _quest_hud_panel.visible = true
+	_status_lbl.visible = false
+	if _quest_hud_panel: _quest_hud_panel.visible = false
 
 
 func _on_weather_changed(mode: int) -> void:
 	if _world and _world.weather:
 		_world.weather.set_weather_mode(mode)
+		_world.weather._process(0.016)
 		_update_status_hud("")
 
 
 func _on_time_settings_changed() -> void:
 	if _world and _world.weather:
 		_world.weather.apply_time_settings()
+		_world.weather._process(0.016)
 		_update_status_hud("")
 
 
@@ -852,9 +879,9 @@ func _exit_binoculars() -> void:
 	_bino_cam.current = false
 	_player.get_camera().current = true
 	_player.set_controls_active(true)
-	_status_lbl.visible = true
+	_status_lbl.visible = false
 	if _quest_hud_panel:
-		_quest_hud_panel.visible = true
+		_quest_hud_panel.visible = false
 	AudioSfx.play_switch()
 
 
@@ -1055,9 +1082,9 @@ func _on_minigame_exit_requested() -> void:
 	_portal_overlay.visible = false
 	_transitioning = false
 	_player.set_controls_active(true)
-	_status_lbl.visible = true
+	_status_lbl.visible = false
 	if _quest_hud_panel:
-		_quest_hud_panel.visible = true
+		_quest_hud_panel.visible = false
 
 
 func _on_slot_payout(chips_won: int, msg: String) -> void:
@@ -1179,6 +1206,6 @@ func _exit_roulette_game() -> void:
 	_in_roulette = false
 	_transitioning = false
 	_player.set_controls_active(true)
-	_status_lbl.visible = true
+	_status_lbl.visible = false
 	if _quest_hud_panel:
-		_quest_hud_panel.visible = true
+		_quest_hud_panel.visible = false

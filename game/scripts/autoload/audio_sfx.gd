@@ -40,6 +40,7 @@ var _waka_toggle: bool = false
 
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	if DisplayServer.get_name() == "headless":
 		return
 	_sfx_playback = _make_stream(-3.0, 0.16, true)
@@ -213,6 +214,10 @@ func play_hawk_cry(pan: float = 0.0) -> void:
 
 func play_animal_rustle(pan: float = 0.0) -> void:
 	play_tone(320.0, 0.14, "noise", 160.0, 0.14, pan)
+
+
+func play_foliage_rustle(pan: float = 0.0) -> void:
+	play_tone(420.0, 0.09, "noise", 220.0, 0.055, pan)
 
 
 func play_thunder() -> void:
@@ -419,6 +424,11 @@ func _fill_sfx_buffer() -> void:
 func _fill_ambient_buffer(delta: float) -> void:
 	if _ambient_playback == null:
 		return
+	if get_tree() and get_tree().paused:
+		var av_p := _ambient_playback.get_frames_available()
+		for _i in range(av_p):
+			_ambient_playback.push_frame(Vector2.ZERO)
+		return
 	# Roulette wheel subtle wooden tick when standing close to the casino table
 	if _ambient_roulette > 0.15 and _music_mode != "menu" and _music_mode != "minigame":
 		_roulette_tick_t -= delta
@@ -461,7 +471,7 @@ func _fill_ambient_buffer(delta: float) -> void:
 func _fill_music_buffer(delta: float) -> void:
 	if _music_playback == null:
 		return
-	if _music_mode == "menu" or _music_mode == "forest":
+	if _music_mode == "menu" or _music_mode == "forest" or (get_tree() and get_tree().paused):
 		var avail := _music_playback.get_frames_available()
 		for _i in range(avail):
 			_music_playback.push_frame(Vector2.ZERO)

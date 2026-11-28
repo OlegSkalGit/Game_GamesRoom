@@ -20,6 +20,7 @@ var _targeted_painting_title: String = ""
 var _targeted_prop_id: String = ""
 var _targeted_prop_title: String = ""
 var _step_timer: float = 0.0
+var _rustle_timer: float = 0.0
 var _lantern_on: bool = false
 var _was_on_floor: bool = true
 
@@ -245,6 +246,13 @@ func _physics_process(delta: float) -> void:
 			_step_timer = 0.36 if in_shallow_water else 0.42
 			var surf := "water" if in_shallow_water else ("carpet" if on_carpet else ("stone" if on_stone else "grass"))
 			AudioSfx.play_step(surf)
+		if not in_shallow_water and not on_carpet and not on_stone and horiz_speed > 2.2:
+			_rustle_timer -= delta
+			if _rustle_timer <= 0.0:
+				_rustle_timer = randf_range(0.55, 0.95)
+				AudioSfx.play_foliage_rustle(randf_range(-0.35, 0.35))
+		else:
+			_rustle_timer = minf(_rustle_timer, 0.15)
 	else:
 		_step_timer = 0.08
 

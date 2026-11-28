@@ -39,6 +39,8 @@ func _run_checks() -> void:
 	var prev_cfg_display: Dictionary = ConfigManager.display.duplicate()
 	var prev_lang: String = ConfigManager.get_current_language()
 	ConfigManager.set_language("en", false)
+	ConfigManager.graphics["day_time_mode"] = 2
+	ConfigManager.graphics["day_duration_min"] = 28.0
 	if not _check(cfg_path.ends_with("game/config.cfg") or cfg_path.ends_with("game\\config.cfg"), "Config must live in game/ root: " + cfg_path): return
 	var pre_cfg := ConfigFile.new()
 	var had_launcher_mode := (pre_cfg.load(cfg_path) == OK and pre_cfg.has_section_key("launcher", "renderer_mode"))
@@ -105,7 +107,16 @@ func _run_checks() -> void:
 	for f_item in world.wildlife._fish:
 		var fn: Node3D = f_item["node"]
 		if not _check(fn.position.y < WorldBuilder.WATER_LEVEL - 0.1, "Fish poked above water at y=%.2f" % fn.position.y): return
-	print("[PASS] WorldBuilder (Sky3D, Terrain3D, Lakes, Weather, Wildlife)")
+	var has_lupine := false
+	var has_chamomile := false
+	var has_poppy := false
+	for fl_m: MultiMeshInstance3D in world._flower_mms:
+		if fl_m.name.begins_with("BlueLupine_"): has_lupine = true
+		elif fl_m.name.begins_with("WhiteChamomile_"): has_chamomile = true
+		elif fl_m.name.begins_with("CrimsonPoppy_"): has_poppy = true
+	if not _check(has_lupine and has_chamomile and has_poppy, "Expected varied BlueLupine, WhiteChamomile & CrimsonPoppy meadow flowers"): return
+	if not _check(world._foliage_mats.size() >= 15, "Expected interactive foliage ShaderMaterials (>=15), got %d" % world._foliage_mats.size()): return
+	print("[PASS] WorldBuilder (Sky3D, Terrain3D, Lakes, Weather, Wildlife, Interactive Flora)")
 
 	# 3. Verify all 24 games & paintings/tripods are strictly unique (zero duplicates!)
 	if not _check(world.casino_room.paintings.size() == MinigameHost.GAME_SCRIPTS.size(), "Expected %d unique paintings/tripods, got %d" % [MinigameHost.GAME_SCRIPTS.size(), world.casino_room.paintings.size()]): return
@@ -262,7 +273,7 @@ func _run_checks() -> void:
 	print("[PASS] Player Casino spawn, painting targeting, physical KEY_E+Shift dive & smooth stair climb")
 
 	# 5. Lighting, Shadows, PBR Materials & Multi-Coil Spiral Perimeter Race Verification
-	if not _check(world.sky3d.sun.shadow_enabled and world.sky3d.sun.directional_shadow_max_distance >= 200.0, "Directional shadows must cover perimeter"): return
+	if not _check(world.sky3d.sun.shadow_enabled and world.sky3d.sun.directional_shadow_max_distance >= 200.0, "Directional shadows must cover perimeter (enabled=%s dist=%.1f t=%.2f)" % [str(world.sky3d.sun.shadow_enabled), world.sky3d.sun.directional_shadow_max_distance, world.sky3d.current_time]): return
 	if not _check(world.casino_room.get_node_or_null("CasinoReflectionProbe") != null, "CasinoReflectionProbe missing"): return
 	var road_mi := world.race_track.get_node_or_null("RaceTrackRoadMesh") as MeshInstance3D
 	if not _check(road_mi != null and road_mi.material_override is StandardMaterial3D, "Track road PBR material missing"): return
@@ -345,6 +356,23 @@ func _run_checks() -> void:
 	for rv in rt.rivals:
 		max_ai_spd = maxf(max_ai_spd, float(rv["cur_spd"]))
 	if not _check(max_ai_spd >= 52.0, "AI rivals too slow during catchup/overtake: %.1f" % max_ai_spd): return
+	# Verify AI rivals smoothly pick passing lanes without overlapping or jittering near each other or player
+	rt.rivals[0]["s"] = 120.0
+	rt.rivals[0]["lat"] = 0.0
+	rt.rivals[0]["base_lat"] = 0.0
+	rt.rivals[1]["s"] = 115.0
+	rt.rivals[1]["lat"] = 0.1
+	rt.rivals[1]["base_lat"] = 0.0
+	car._track_s = 122.0
+	car._lat = 0.05
+	var max_lat_step := 0.0
+	var prev_r1_lat := float(rt.rivals[1]["lat"])
+	for _av in range(60):
+		rt._process(1.0 / 60.0)
+		car._physics_process(1.0 / 60.0)
+		max_lat_step = maxf(max_lat_step, absf(float(rt.rivals[1]["lat"]) - prev_r1_lat))
+		prev_r1_lat = float(rt.rivals[1]["lat"])
+	if not _check(absf(float(rt.rivals[1]["lat"]) - float(rt.rivals[0]["lat"])) > 0.65 and max_lat_step < 0.25, "AI rivals failed smooth lane separation (gap=%.2f, max_step=%.3f)" % [absf(float(rt.rivals[1]["lat"]) - float(rt.rivals[0]["lat"])), max_lat_step]): return
 	rt.player_progress_dist = car._progress_dist
 
 	# Test slow-speed entry & climb through a vertical loop + smooth steering left/right
@@ -599,6 +627,19 @@ func _run_checks() -> void:
 	main._menu._open_subtab("controls")
 	if not _check(main._menu._btn_tab_controls != null and main._menu._sub_vbox.get_child_count() >= 20, "Controls settings tab missing full control descriptions"): return
 	main._menu.close_menu()
+	if not _check(not get_tree().paused, "Tree must unpause after closing menu"): return
+	# Verify Pause-on-Menu freezes world (Ferris wheel, AI rivals, gameplay) and resumes cleanly
+	var fw_before: float = world.ferris_wheel._angle
+	var r0_before: float = float(world.race_track.rivals[0]["s"])
+	main._pause_to_menu()
+	if not _check(get_tree().paused, "Game world must pause when entering menu"): return
+	for _pf in range(15):
+		await get_tree().process_frame
+	if not _check(is_equal_approx(world.ferris_wheel._angle, fw_before) and is_equal_approx(float(world.race_track.rivals[0]["s"]), r0_before), "Ferris wheel / AI rivals kept advancing while paused in menu"): return
+	main._menu.close_menu()
+	main._on_resume_requested()
+	if not _check(not get_tree().paused and main._player.controls_enabled, "Resuming from menu failed to unpause world"): return
+	if not _check(not main._status_lbl.visible and not main._quest_hud_panel.visible, "Top corner HUD labels should stay hidden"): return
 
 	# A) F5 on foot at distant ridge -> start Race -> F9 loads back onto foot & restores Terrain3D/Weather/Player sync
 	var foot_pos := Vector3(-124.0, 26.0, -96.0)
@@ -659,6 +700,40 @@ func _run_checks() -> void:
 		fw_prev.store_buffer(prev_save_bytes)
 		fw_prev.close()
 	print("[PASS] Game Section, Controls Tab, & F5/F9 Save/Load with Full World/Race Sync")
+
+	# 12. Option 2A Upgrades & Mesh/Occluder Optimizations
+	if not _check(str(ProjectSettings.get_setting("physics/3d/physics_engine", "")) == "Jolt Physics", "Jolt Physics engine not enabled in ProjectSettings"): return
+	if not _check(world._god_rays_effect is GodRaysEffect and world.sky3d.compositor != null and world.sky3d.compositor.compositor_effects.has(world._god_rays_effect), "GodRaysEffect missing from Sky3D Compositor"): return
+	if not _check(world.casino_room._casino_voxel_gi is VoxelGI, "Interior CasinoVoxelGI node missing"): return
+	if not _check(world.casino_room._occluders.size() >= 18, "Expected >=18 CasinoRoom OccluderInstance3D nodes, got %d" % world.casino_room._occluders.size()): return
+	var pit_node: Node = world.race_track.get_node_or_null("RacePitStop")
+	if not _check(pit_node != null and pit_node.get_node_or_null("StartFinishDecal") is Decal and pit_node.get_node_or_null("PitZoneDecal") is Decal, "Race track Decals missing under RacePitStop"): return
+	if not _check(world.casino_room.get_node_or_null("CasinoEntranceDecal") is Decal, "CasinoEntranceDecal missing"): return
+	var water_mi := world.get_node_or_null("LakesWater") as MeshInstance3D
+	if not _check(water_mi != null and water_mi.mesh is PlaneMesh and (water_mi.mesh as PlaneMesh).subdivide_width <= 120, "LakesWater subdivision not optimized"): return
+	var has_shrub := false
+	for bm in world._bush_mms:
+		if bm and bm.name.begins_with("PolyShrub"):
+			has_shrub = true
+			break
+	var has_moss := false
+	for fm in world._fern_mms:
+		if fm and fm.name.begins_with("PolyMoss"):
+			has_moss = true
+			break
+	if not _check(has_shrub and has_moss, "PolyHaven shrub_01 or moss_01 MultiMeshes missing"): return
+	# Exercise live sun-facing God Rays compute pass when running on Forward+ GPU
+	main._player.global_position = Vector3(-40.0, world.sample_height(-40.0, 20.0) + 1.8, 20.0)
+	var sun_dir_test: Vector3 = world.sky3d.sky._sun_transform.origin.normalized()
+	if sun_dir_test.y > 0.05:
+		main._player._yaw = atan2(-sun_dir_test.x, -sun_dir_test.z)
+		main._player._pitch = asin(clampf(sun_dir_test.y, -0.9, 0.9))
+		main._player.get_camera().rotation = Vector3(main._player._pitch, main._player._yaw, 0.0)
+		for _gf in range(3):
+			await get_tree().process_frame
+		if not ConfigManager.is_compatibility_renderer():
+			if not _check(world._god_rays_effect.ray_strength > 0.10, "GodRaysEffect ray_strength stayed 0 when facing daytime sun"): return
+	print("[PASS] Option 2A (Jolt, GodRays Compositor, VoxelGI, Decals, shrub_01/moss_01) & Mesh/Occluder Optimizations")
 
 	main.queue_free()
 	await get_tree().process_frame

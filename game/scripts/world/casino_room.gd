@@ -84,6 +84,8 @@ var _disco_mode: bool = false
 var _disco_lights: Array[OmniLight3D] = []
 var _arch_shadow_lights: Array[OmniLight3D] = []
 var _casino_probe: ReflectionProbe
+var _casino_voxel_gi: VoxelGI
+var _occluders: Array[OccluderInstance3D] = []
 var _preview_drawer_nodes: Array[Dictionary] = []
 var _searchlights: Array[Dictionary] = []
 var _searchlights_active: bool = false
@@ -107,6 +109,7 @@ func _ready() -> void:
 	_build_all_paintings()
 	_build_roof_searchlights()
 	_build_interior_reflection_probe()
+	_build_interior_gi_and_decals()
 	ConfigManager.graphics_changed.connect(_apply_lighting_quality)
 	ConfigManager.language_changed.connect(_refresh_language)
 	_apply_lighting_quality()
@@ -243,13 +246,14 @@ func _add_box_body(parent: Node3D, size: Vector3, pos: Vector3, mat: Material, w
 	return mi
 
 
-func _add_occluder(sz: Vector3, pos: Vector3) -> void:
+func _add_occluder(sz: Vector3, pos: Vector3, parent: Node3D = self) -> void:
 	var oi := OccluderInstance3D.new()
 	var bo := BoxOccluder3D.new()
 	bo.size = sz
 	oi.occluder = bo
 	oi.position = pos
-	add_child(oi)
+	parent.add_child(oi)
+	_occluders.append(oi)
 
 
 func _build_arched_partition(x_pos: float, plaster_wall: Material, walnut_mat: Material, bronze_mat: Material) -> void:
@@ -257,6 +261,9 @@ func _build_arched_partition(x_pos: float, plaster_wall: Material, walnut_mat: M
 	_add_box_body(self, Vector3(0.46, 6.2, 7.0), Vector3(x_pos, 3.1, -5.5), plaster_wall, true)
 	_add_box_body(self, Vector3(0.46, 6.2, 7.0), Vector3(x_pos, 3.1, 5.5), plaster_wall, true)
 	_add_box_body(self, Vector3(0.46, 1.8, 4.0), Vector3(x_pos, 5.3, 0.0), plaster_wall, true)
+	_add_occluder(Vector3(0.28, 6.0, 6.8), Vector3(x_pos, 3.1, -5.5))
+	_add_occluder(Vector3(0.28, 6.0, 6.8), Vector3(x_pos, 3.1, 5.5))
+	_add_occluder(Vector3(0.28, 1.6, 3.8), Vector3(x_pos, 5.3, 0.0))
 	# Arch door casing
 	_add_box_body(self, Vector3(0.56, 4.4, 0.22), Vector3(x_pos, 2.2, -2.05), walnut_mat, false)
 	_add_box_body(self, Vector3(0.56, 4.4, 0.22), Vector3(x_pos, 2.2, 2.05), walnut_mat, false)
@@ -314,8 +321,11 @@ func _build_structure() -> void:
 	_add_box_body(self, Vector3(0.5, 6.2, 18.6), Vector3(-20.0, 3.1, 0.0), plaster_wall, true)
 	_add_box_body(self, Vector3(0.5, 6.2, 18.6), Vector3(20.0, 3.1, 0.0), plaster_wall, true)
 
-	# Occluders embedded INSIDE opaque N/W/E walls (omit overhead deck so Mansard stays unobstructed!)
+	# Occluders embedded INSIDE opaque perimeter & 1F walls (clear of central South entrance!)
 	_add_occluder(Vector3(40.0, 6.0, 0.3), Vector3(0.0, 3.1, -9.0))
+	_add_occluder(Vector3(17.0, 6.0, 0.3), Vector3(-11.6, 3.1, 9.0))
+	_add_occluder(Vector3(17.0, 6.0, 0.3), Vector3(11.6, 3.1, 9.0))
+	_add_occluder(Vector3(6.0, 1.6, 0.3), Vector3(0.0, 5.3, 9.0))
 	_add_occluder(Vector3(0.3, 6.0, 18.0), Vector3(-20.0, 3.1, 0.0))
 	_add_occluder(Vector3(0.3, 6.0, 18.0), Vector3(20.0, 3.1, 0.0))
 
@@ -347,7 +357,7 @@ func _build_structure() -> void:
 
 	# Exterior Entrance Columns & Marquee
 	for cx in [-3.4, 3.4]:
-		var col_mesh := CylinderMesh.new(); col_mesh.top_radius = 0.28; col_mesh.bottom_radius = 0.32; col_mesh.height = 5.6
+		var col_mesh := CylinderMesh.new(); col_mesh.top_radius = 0.28; col_mesh.bottom_radius = 0.32; col_mesh.height = 5.6; col_mesh.radial_segments = 18; col_mesh.rings = 1
 		var cmi := MeshInstance3D.new(); cmi.mesh = col_mesh; cmi.material_override = stone_mat; cmi.position = Vector3(cx, 2.8, 10.6)
 		add_child(cmi)
 		_add_box_body(self, Vector3(0.75, 0.30, 0.75), Vector3(cx, 5.65, 10.6), bronze_mat, false)
@@ -373,6 +383,9 @@ func _build_structure() -> void:
 	_add_box_body(self, Vector3(38.0, 0.42, 19.6), Vector3(-1.7, 6.59, 0.0), roof_ext, true)
 	_add_box_body(self, Vector3(3.4, 0.42, 8.8), Vector3(19.0, 6.59, 5.4), roof_ext, true)
 	_add_box_body(self, Vector3(3.4, 0.42, 2.0), Vector3(19.0, 6.59, -8.8), roof_ext, true)
+	_add_occluder(Vector3(37.6, 0.24, 19.2), Vector3(-1.7, 6.59, 0.0))
+	_add_occluder(Vector3(3.0, 0.24, 8.4), Vector3(19.0, 6.59, 5.4))
+	_add_occluder(Vector3(3.0, 0.24, 1.8), Vector3(19.0, 6.59, -8.8))
 
 	# Perimeter bronze fascia ONLY along 4 outer edges
 	_add_box_body(self, Vector3(41.8, 0.24, 0.30), Vector3(0, 6.32, 9.75), bronze_mat, false)
@@ -574,16 +587,26 @@ func _build_basement_vault() -> void:
 	_add_box_body(self, Vector3(7.6, 0.30, 6.5), Vector3(15.4, -0.25, -5.45), dark_walnut, true)
 	_add_box_body(self, Vector3(7.6, 0.30, 2.3), Vector3(15.4, -0.25, 7.55), dark_walnut, true)
 	_add_box_body(self, Vector3(1.8, 0.30, 8.6), Vector3(18.3, -0.25, 2.1), dark_walnut, true)
+	_add_occluder(Vector3(31.0, 0.22, 17.2), Vector3(-4.0, -0.25, 0.0))
+	_add_occluder(Vector3(7.4, 0.22, 6.3), Vector3(15.4, -0.25, -5.45))
+	_add_occluder(Vector3(7.4, 0.22, 2.1), Vector3(15.4, -0.25, 7.55))
+	_add_occluder(Vector3(1.6, 0.22, 8.4), Vector3(18.3, -0.25, 2.1))
 
 	# Outer Underground Perimeter Walls
 	_add_box_body(self, Vector3(39.2, 3.8, 0.4), Vector3(-0.25, -2.1, -8.5), plaster_dark, true)
 	_add_box_body(self, Vector3(39.2, 3.8, 0.4), Vector3(-0.25, -2.1, 8.5), plaster_dark, true)
 	_add_box_body(self, Vector3(0.4, 3.8, 17.6), Vector3(-19.5, -2.1, 0.0), gallery_wall, true)
 	_add_box_body(self, Vector3(0.4, 3.8, 17.6), Vector3(19.0, -2.1, 0.0), plaster_dark, true)
+	_add_occluder(Vector3(39.0, 3.6, 0.25), Vector3(-0.25, -2.1, -8.5))
+	_add_occluder(Vector3(39.0, 3.6, 0.25), Vector3(-0.25, -2.1, 8.5))
+	_add_occluder(Vector3(0.25, 3.6, 17.4), Vector3(-19.5, -2.1, 0.0))
+	_add_occluder(Vector3(0.25, 3.6, 17.4), Vector3(19.0, -2.1, 0.0))
 
 	# Partition 1: Card Club <-> Exhibition Hall at X=+5.2 (open doorway Z:+1.8..+5.4)
 	_add_box_body(self, Vector3(0.42, 3.8, 10.3), Vector3(5.2, -2.1, -3.35), plaster_dark, true)
 	_add_box_body(self, Vector3(0.42, 3.8, 3.1), Vector3(5.2, -2.1, 6.95), plaster_dark, true)
+	_add_occluder(Vector3(0.25, 3.6, 10.1), Vector3(5.2, -2.1, -3.35))
+	_add_occluder(Vector3(0.25, 3.6, 2.9), Vector3(5.2, -2.1, 6.95))
 	_add_box_body(self, Vector3(0.42, 0.9, 3.6), Vector3(5.2, -0.75, 3.6), plaster_dark, true)
 	_add_box_body(self, Vector3(0.50, 3.1, 0.22), Vector3(5.2, -2.45, 1.78), bronze_mat, false)
 	_add_box_body(self, Vector3(0.50, 3.1, 0.22), Vector3(5.2, -2.45, 5.42), bronze_mat, false)
@@ -593,6 +616,9 @@ func _build_basement_vault() -> void:
 	_add_box_body(self, Vector3(0.42, 3.8, 2.7), Vector3(-6.8, -2.1, -7.15), gallery_wall, true)
 	_add_box_body(self, Vector3(0.42, 3.8, 5.0), Vector3(-6.8, -2.1, 0.0), gallery_wall, true)
 	_add_box_body(self, Vector3(0.42, 3.8, 2.7), Vector3(-6.8, -2.1, 7.15), gallery_wall, true)
+	_add_occluder(Vector3(0.25, 3.6, 2.5), Vector3(-6.8, -2.1, -7.15))
+	_add_occluder(Vector3(0.25, 3.6, 4.8), Vector3(-6.8, -2.1, 0.0))
+	_add_occluder(Vector3(0.25, 3.6, 2.5), Vector3(-6.8, -2.1, 7.15))
 	_add_box_body(self, Vector3(0.42, 0.9, 3.4), Vector3(-6.8, -0.75, -4.15), gallery_wall, true)
 	_add_box_body(self, Vector3(0.42, 0.9, 3.4), Vector3(-6.8, -0.75, 4.15), gallery_wall, true)
 	# Wine Cellar Arch Frame (-6.8, -4.15)
@@ -603,7 +629,7 @@ func _build_basement_vault() -> void:
 	_add_box_body(self, Vector3(0.54, 3.15, 0.28), Vector3(-6.8, -2.42, 2.45), vault_steel, false)
 	_add_box_body(self, Vector3(0.54, 3.15, 0.28), Vector3(-6.8, -2.42, 5.85), vault_steel, false)
 	_add_box_body(self, Vector3(0.56, 0.28, 3.70), Vector3(-6.8, -0.90, 4.15), vault_steel, false)
-	var vdoor_m := CylinderMesh.new(); vdoor_m.top_radius = 1.42; vdoor_m.bottom_radius = 1.42; vdoor_m.height = 0.24
+	var vdoor_m := CylinderMesh.new(); vdoor_m.top_radius = 1.42; vdoor_m.bottom_radius = 1.42; vdoor_m.height = 0.24; vdoor_m.radial_segments = 24; vdoor_m.rings = 1
 	var vdoor_mi := MeshInstance3D.new(); vdoor_mi.mesh = vdoor_m; vdoor_mi.material_override = vault_steel
 	vdoor_mi.position = Vector3(-7.9, -2.50, 2.05); vdoor_mi.rotation = Vector3(PI * 0.5, 0.45, 0.0)
 	add_child(vdoor_mi)
@@ -612,6 +638,8 @@ func _build_basement_vault() -> void:
 	_add_box_body(self, Vector3(6.2, 3.8, 0.40), Vector3(-9.9, -2.1, 0.0), cellar_stone, true)
 	_add_box_body(self, Vector3(3.3, 3.8, 0.40), Vector3(-17.85, -2.1, 0.0), cellar_stone, true)
 	_add_box_body(self, Vector3(3.2, 0.9, 0.40), Vector3(-14.6, -0.75, 0.0), cellar_stone, true)
+	_add_occluder(Vector3(6.0, 3.6, 0.24), Vector3(-9.9, -2.1, 0.0))
+	_add_occluder(Vector3(3.1, 3.6, 0.24), Vector3(-17.85, -2.1, 0.0))
 	_add_box_body(self, Vector3(0.22, 3.1, 0.48), Vector3(-13.0, -2.45, 0.0), vault_steel, false)
 	_add_box_body(self, Vector3(0.22, 3.1, 0.48), Vector3(-16.2, -2.45, 0.0), vault_steel, false)
 
@@ -625,8 +653,8 @@ func _build_basement_vault() -> void:
 	for sz in [-1.05, 1.05]:
 		_add_box_body(self, Vector3(0.55, 0.42, 0.55), Vector3(8.8, -3.79, -1.0 + sz), leather_mat, true)
 
+	var brl := CylinderMesh.new(); brl.top_radius = 0.34; brl.bottom_radius = 0.34; brl.height = 0.92; brl.radial_segments = 16; brl.rings = 1
 	for bz in [-6.0, -4.4, 4.4, 6.0]:
-		var brl := CylinderMesh.new(); brl.top_radius = 0.34; brl.bottom_radius = 0.34; brl.height = 0.92
 		var bmi := MeshInstance3D.new(); bmi.mesh = brl; bmi.material_override = dark_walnut; bmi.position = Vector3(17.8, -3.54, bz)
 		add_child(bmi)
 		_add_box_body(self, Vector3(0.75, 0.92, 0.75), Vector3(17.8, -3.54, bz), dark_walnut, true).visible = false
@@ -638,9 +666,9 @@ func _build_basement_vault() -> void:
 	add_child(lbl_club)
 
 	var ab := StaticBody3D.new(); ab.collision_layer = 2; ab.collision_mask = 0
-	var ped_m := CylinderMesh.new(); ped_m.top_radius = 0.14; ped_m.bottom_radius = 0.16; ped_m.height = 0.90
+	var ped_m := CylinderMesh.new(); ped_m.top_radius = 0.14; ped_m.bottom_radius = 0.16; ped_m.height = 0.90; ped_m.radial_segments = 14; ped_m.rings = 1
 	var pm_d := MeshInstance3D.new(); pm_d.mesh = ped_m; pm_d.material_override = bronze_mat; pm_d.position = Vector3(8.8, -3.55, 0.35); add_child(pm_d)
-	var btn_m := SphereMesh.new(); btn_m.radius = 0.14
+	var btn_m := SphereMesh.new(); btn_m.radius = 0.14; btn_m.height = 0.28; btn_m.radial_segments = 14; btn_m.rings = 7
 	var btn_mat := _mat(Color(0.95, 0.12, 0.14), 0.25, 0.2, Color(0.98, 0.16, 0.18), 1.6)
 	var bm_d := MeshInstance3D.new(); bm_d.mesh = btn_m; bm_d.material_override = btn_mat; bm_d.position = Vector3(8.8, -3.05, 0.35); add_child(bm_d)
 	var dcs := CollisionShape3D.new(); var dbox := BoxShape3D.new(); dbox.size = Vector3(0.8, 1.3, 0.8); dcs.shape = dbox; ab.position = Vector3(8.8, -3.15, 0.35); ab.add_child(dcs)
@@ -661,8 +689,8 @@ func _build_basement_vault() -> void:
 	add_child(lbl_west_w)
 
 	# Velvet Museum Stanchions flanking central gallery runner
-	var post_m := CylinderMesh.new(); post_m.top_radius = 0.035; post_m.bottom_radius = 0.09; post_m.height = 0.92
-	var rope_m := CylinderMesh.new(); rope_m.top_radius = 0.025; rope_m.bottom_radius = 0.025; rope_m.height = 2.6
+	var post_m := CylinderMesh.new(); post_m.top_radius = 0.035; post_m.bottom_radius = 0.09; post_m.height = 0.92; post_m.radial_segments = 10; post_m.rings = 1
+	var rope_m := CylinderMesh.new(); rope_m.top_radius = 0.025; rope_m.bottom_radius = 0.025; rope_m.height = 2.6; rope_m.radial_segments = 8; rope_m.rings = 1
 	for px: float in [-2.1, 0.5]:
 		for pz: float in [-2.6, 0.0, 2.6]:
 			var ps := MeshInstance3D.new(); ps.mesh = post_m; ps.material_override = bronze_mat; ps.position = Vector3(px, -3.54, pz); add_child(ps)
@@ -672,7 +700,7 @@ func _build_basement_vault() -> void:
 	# Central Relic #1: Golden Casino Trophy Cup on Velvet Plinth
 	_add_box_body(self, Vector3(0.95, 1.05, 0.95), Vector3(-0.8, -3.47, 0.0), leather_mat, true)
 	_add_box_body(self, Vector3(1.05, 0.08, 1.05), Vector3(-0.8, -2.92, 0.0), gold_mat, false)
-	var cup_m := CylinderMesh.new(); cup_m.top_radius = 0.24; cup_m.bottom_radius = 0.08; cup_m.height = 0.48
+	var cup_m := CylinderMesh.new(); cup_m.top_radius = 0.24; cup_m.bottom_radius = 0.08; cup_m.height = 0.48; cup_m.radial_segments = 16; cup_m.rings = 1
 	var cpm := MeshInstance3D.new(); cpm.mesh = cup_m; cpm.material_override = gold_mat; cpm.position = Vector3(-0.8, -2.62, 0.0); add_child(cpm)
 	var r1 := StaticBody3D.new(); r1.collision_layer = 2; r1.collision_mask = 0; r1.position = Vector3(-0.8, -2.62, 0.0)
 	var r1cs := CollisionShape3D.new(); var r1b := BoxShape3D.new(); r1b.size = Vector3(1.2, 1.4, 1.2); r1cs.shape = r1b; r1.add_child(r1cs)
@@ -686,7 +714,7 @@ func _build_basement_vault() -> void:
 	lbl_wine.pixel_size = 0.0044; lbl_wine.font_size = 38; lbl_wine.modulate = Color(0.96, 0.78, 0.42)
 	add_child(lbl_wine)
 	var wine_glass := _mat(Color(0.32, 0.06, 0.08), 0.15, 0.2, Color(0.45, 0.05, 0.06), 0.45)
-	var btl_m := CylinderMesh.new(); btl_m.top_radius = 0.055; btl_m.bottom_radius = 0.065; btl_m.height = 0.34
+	var btl_m := CylinderMesh.new(); btl_m.top_radius = 0.055; btl_m.bottom_radius = 0.065; btl_m.height = 0.34; btl_m.radial_segments = 10; btl_m.rings = 1
 	for rx_c: float in [-18.2, -16.0]:
 		_add_box_body(self, Vector3(1.8, 2.2, 0.45), Vector3(rx_c, -2.9, -8.0), oak_mat, true)
 		for row_y: float in [-3.4, -2.8, -2.2]:
@@ -694,13 +722,13 @@ func _build_basement_vault() -> void:
 			for bx_i in range(-2, 3):
 				var btl := MeshInstance3D.new(); btl.mesh = btl_m; btl.material_override = wine_glass
 				btl.position = Vector3(rx_c + float(bx_i) * 0.30, row_y + 0.18, -7.85); btl.rotation.x = PI * 0.35; add_child(btl)
+	var cask_m := CylinderMesh.new(); cask_m.top_radius = 0.46; cask_m.bottom_radius = 0.46; cask_m.height = 1.15; cask_m.radial_segments = 16; cask_m.rings = 1
 	for cask_z: float in [-6.0, -3.6, -1.6]:
-		var cask_m := CylinderMesh.new(); cask_m.top_radius = 0.46; cask_m.bottom_radius = 0.46; cask_m.height = 1.15
 		var cmi := MeshInstance3D.new(); cmi.mesh = cask_m; cmi.material_override = oak_mat; cmi.position = Vector3(-18.4, -3.38, cask_z); cmi.rotation.z = PI * 0.5; add_child(cmi)
 		_add_box_body(self, Vector3(1.2, 1.0, 1.0), Vector3(-18.4, -3.45, cask_z), oak_mat, true).visible = false
 	# Relic #2: Aged Wine Amphora on Tasting Pedestal
 	_add_box_body(self, Vector3(0.85, 0.95, 0.85), Vector3(-15.5, -3.52, -4.2), oak_mat, true)
-	var amp_m := SphereMesh.new(); amp_m.radius = 0.24
+	var amp_m := SphereMesh.new(); amp_m.radius = 0.24; amp_m.height = 0.48; amp_m.radial_segments = 16; amp_m.rings = 8
 	var amp_mi := MeshInstance3D.new(); amp_mi.mesh = amp_m; amp_mi.material_override = gold_mat; amp_mi.position = Vector3(-15.5, -2.82, -4.2); amp_mi.scale = Vector3(0.9, 1.35, 0.9); add_child(amp_mi)
 	var r2 := StaticBody3D.new(); r2.collision_layer = 2; r2.collision_mask = 0; r2.position = Vector3(-15.5, -2.82, -4.2)
 	var r2cs := CollisionShape3D.new(); var r2b := BoxShape3D.new(); r2b.size = Vector3(1.2, 1.4, 1.2); r2cs.shape = r2b; r2.add_child(r2cs)
@@ -720,7 +748,7 @@ func _build_basement_vault() -> void:
 	_add_box_body(self, Vector3(1.8, 0.9, 0.8), Vector3(-17.5, -3.55, 6.2), gold_mat, true).visible = false
 	# Interactive Bank Safe Cabinet (West wall)
 	_add_box_body(self, Vector3(1.1, 1.85, 1.45), Vector3(-18.6, -3.05, 3.6), vault_steel, true)
-	var dial_m := CylinderMesh.new(); dial_m.top_radius = 0.22; dial_m.bottom_radius = 0.22; dial_m.height = 0.14
+	var dial_m := CylinderMesh.new(); dial_m.top_radius = 0.22; dial_m.bottom_radius = 0.22; dial_m.height = 0.14; dial_m.radial_segments = 16; dial_m.rings = 1
 	var dmi := MeshInstance3D.new(); dmi.mesh = dial_m; dmi.material_override = gold_mat; dmi.position = Vector3(-18.0, -2.95, 3.6); dmi.rotation.z = PI * 0.5; add_child(dmi)
 	var vsafe := StaticBody3D.new(); vsafe.collision_layer = 2; vsafe.collision_mask = 0; vsafe.position = Vector3(-18.3, -2.95, 3.6)
 	var vscs := CollisionShape3D.new(); var vsb := BoxShape3D.new(); vsb.size = Vector3(1.5, 2.0, 1.7); vscs.shape = vsb; vsafe.add_child(vscs)
@@ -786,10 +814,10 @@ func _build_basement_vault() -> void:
 
 	# --- LIGHTING ACROSS ALL 4 BASEMENT ROOMS ---
 	var shade_mat := _mat(Color(1.0, 0.90, 0.72), 0.35, 0.0, Color(1.0, 0.80, 0.50), 0.95)
-	var stem_mesh := CylinderMesh.new(); stem_mesh.top_radius = 0.028; stem_mesh.bottom_radius = 0.028; stem_mesh.height = 0.24
-	var canopy_mesh := CylinderMesh.new(); canopy_mesh.top_radius = 0.14; canopy_mesh.bottom_radius = 0.12; canopy_mesh.height = 0.05
-	var shade_cyl := CylinderMesh.new(); shade_cyl.top_radius = 0.12; shade_cyl.bottom_radius = 0.20; shade_cyl.height = 0.12
-	var ring_mesh := TorusMesh.new(); ring_mesh.inner_radius = 0.24; ring_mesh.outer_radius = 0.29
+	var stem_mesh := CylinderMesh.new(); stem_mesh.top_radius = 0.028; stem_mesh.bottom_radius = 0.028; stem_mesh.height = 0.24; stem_mesh.radial_segments = 8; stem_mesh.rings = 1
+	var canopy_mesh := CylinderMesh.new(); canopy_mesh.top_radius = 0.14; canopy_mesh.bottom_radius = 0.12; canopy_mesh.height = 0.05; canopy_mesh.radial_segments = 12; canopy_mesh.rings = 1
+	var shade_cyl := CylinderMesh.new(); shade_cyl.top_radius = 0.12; shade_cyl.bottom_radius = 0.20; shade_cyl.height = 0.12; shade_cyl.radial_segments = 16; shade_cyl.rings = 1
+	var ring_mesh := TorusMesh.new(); ring_mesh.inner_radius = 0.24; ring_mesh.outer_radius = 0.29; ring_mesh.rings = 16; ring_mesh.ring_segments = 8
 	var lamp_specs := [
 		[Vector3(8.5, -0.40, -3.6), Color(1.0, 0.84, 0.62), 1.65],
 		[Vector3(8.5, -0.40, 3.6), Color(1.0, 0.84, 0.62), 1.65],
@@ -905,6 +933,7 @@ func _build_mansard() -> void:
 		add_child(rp)
 		_add_box_body(rp, Vector3(32.2, 0.22, slope_hyp + 0.45), Vector3.ZERO, roof_slate, true)
 		_add_box_body(rp, Vector3(31.8, 0.08, slope_hyp), Vector3(0, -0.14, 0), walnut_mat, false)
+		_add_occluder(Vector3(31.6, 0.16, slope_hyp + 0.2), Vector3.ZERO, rp)
 
 	# Ridge Beam + Exposed A-frame Rafters inside Mansard
 	_add_box_body(self, Vector3(31.8, 0.28, 0.28), Vector3(4.1, 11.66, 0.0), dark_walnut, false)
@@ -920,6 +949,8 @@ func _build_mansard() -> void:
 	_add_box_body(self, Vector3(0.32, 2.08, 15.2), Vector3(19.85, 7.84, 0.0), walnut_mat, true)
 	_add_box_body(self, Vector3(0.32, 1.70, 9.2), Vector3(19.85, 9.75, 0.0), walnut_mat, true)
 	_add_box_body(self, Vector3(0.32, 1.15, 4.2), Vector3(19.85, 11.10, 0.0), walnut_mat, true)
+	_add_occluder(Vector3(0.22, 2.0, 15.0), Vector3(19.85, 7.84, 0.0))
+	_add_occluder(Vector3(0.22, 1.6, 9.0), Vector3(19.85, 9.75, 0.0))
 
 	# West Gable Wall (X = -11.5) & East Gable Wall (X = +19.85) with full eave infill + open archway at Z:[-2.2..+2.2]
 	_add_box_body(self, Vector3(0.32, 2.08, 5.4), Vector3(-11.5, 7.84, -4.9), walnut_mat, true)
@@ -958,10 +989,10 @@ func _build_mansard() -> void:
 	add_child(lbl_mansard)
 
 	# Observatory Brass Telescope / Binoculars on West Balcony (Interactive!)
-	var tele_pod := CylinderMesh.new(); tele_pod.top_radius = 0.06; tele_pod.bottom_radius = 0.24; tele_pod.height = 1.25
+	var tele_pod := CylinderMesh.new(); tele_pod.top_radius = 0.06; tele_pod.bottom_radius = 0.24; tele_pod.height = 1.25; tele_pod.radial_segments = 14; tele_pod.rings = 1
 	var tpm := MeshInstance3D.new(); tpm.mesh = tele_pod; tpm.material_override = dark_walnut; tpm.position = Vector3(-16.5, 7.42, 0.0)
 	add_child(tpm)
-	var tele_tube := CylinderMesh.new(); tele_tube.top_radius = 0.09; tele_tube.bottom_radius = 0.055; tele_tube.height = 1.45
+	var tele_tube := CylinderMesh.new(); tele_tube.top_radius = 0.09; tele_tube.bottom_radius = 0.055; tele_tube.height = 1.45; tele_tube.radial_segments = 14; tele_tube.rings = 1
 	var ttm := MeshInstance3D.new(); ttm.mesh = tele_tube; ttm.material_override = bronze_mat
 	ttm.position = Vector3(-16.75, 8.15, 0.0); ttm.rotation_degrees = Vector3(0.0, 0.0, 62.0)
 	add_child(ttm)
@@ -971,8 +1002,8 @@ func _build_mansard() -> void:
 	add_child(tb)
 
 	# Mansard Pendant Lights hung from Roof Ridge (Y=11.66)
-	var m_rod := CylinderMesh.new(); m_rod.top_radius = 0.025; m_rod.bottom_radius = 0.025; m_rod.height = 1.85
-	var m_shd := CylinderMesh.new(); m_shd.top_radius = 0.16; m_shd.bottom_radius = 0.34; m_shd.height = 0.22
+	var m_rod := CylinderMesh.new(); m_rod.top_radius = 0.025; m_rod.bottom_radius = 0.025; m_rod.height = 1.85; m_rod.radial_segments = 8; m_rod.rings = 1
+	var m_shd := CylinderMesh.new(); m_shd.top_radius = 0.16; m_shd.bottom_radius = 0.34; m_shd.height = 0.22; m_shd.radial_segments = 18; m_shd.rings = 1
 	for mx in [-4.5, 3.0, 10.5]:
 		var mr := MeshInstance3D.new(); mr.mesh = m_rod; mr.material_override = bronze_mat; mr.position = Vector3(mx, 10.72, 0.0); add_child(mr)
 		var ms := MeshInstance3D.new(); ms.mesh = m_shd; ms.material_override = shade_mat; ms.position = Vector3(mx, 9.76, 0.0); add_child(ms)
@@ -1002,28 +1033,28 @@ func _build_casino_centerpiece() -> void:
 	var bronze_mat := _mat(Color(0.56, 0.43, 0.20), 0.30, 0.88)
 	var gold_line := _mat(Color(0.70, 0.56, 0.24), 0.35, 0.70)
 
-	var ped := CylinderMesh.new(); ped.top_radius = 0.52; ped.bottom_radius = 0.84; ped.height = 0.86
+	var ped := CylinderMesh.new(); ped.top_radius = 0.52; ped.bottom_radius = 0.84; ped.height = 0.86; ped.radial_segments = 24; ped.rings = 1
 	var ped_mi := MeshInstance3D.new(); ped_mi.mesh = ped; ped_mi.material_override = walnut_mat; ped_mi.position = Vector3(0, 0.43, 0)
 	table_root.add_child(ped_mi)
 
-	var rim := CylinderMesh.new(); rim.top_radius = 1.84; rim.bottom_radius = 1.78; rim.height = 0.14
+	var rim := CylinderMesh.new(); rim.top_radius = 1.84; rim.bottom_radius = 1.78; rim.height = 0.14; rim.radial_segments = 32; rim.rings = 1
 	var rim_mi := MeshInstance3D.new(); rim_mi.mesh = rim; rim_mi.material_override = walnut_mat; rim_mi.position = Vector3(0, 0.90, 0)
 	table_root.add_child(rim_mi)
 
-	var bumper := TorusMesh.new(); bumper.inner_radius = 1.72; bumper.outer_radius = 1.90
+	var bumper := TorusMesh.new(); bumper.inner_radius = 1.72; bumper.outer_radius = 1.90; bumper.rings = 32; bumper.ring_segments = 10
 	var bmp_mi := MeshInstance3D.new(); bmp_mi.mesh = bumper; bmp_mi.material_override = leather_mat; bmp_mi.position = Vector3(0, 0.97, 0)
 	bmp_mi.scale = Vector3(1.0, 0.65, 1.0)
 	table_root.add_child(bmp_mi)
 
-	var felt := CylinderMesh.new(); felt.top_radius = 1.72; felt.bottom_radius = 1.72; felt.height = 0.04
+	var felt := CylinderMesh.new(); felt.top_radius = 1.72; felt.bottom_radius = 1.72; felt.height = 0.04; felt.radial_segments = 32; felt.rings = 1
 	var felt_mi := MeshInstance3D.new(); felt_mi.mesh = felt; felt_mi.material_override = baize_mat; felt_mi.position = Vector3(0, 0.96, 0)
 	table_root.add_child(felt_mi)
 
-	var felt_ring := TorusMesh.new(); felt_ring.inner_radius = 1.12; felt_ring.outer_radius = 1.15
+	var felt_ring := TorusMesh.new(); felt_ring.inner_radius = 1.12; felt_ring.outer_radius = 1.15; felt_ring.rings = 28; felt_ring.ring_segments = 8
 	var fr_mi := MeshInstance3D.new(); fr_mi.mesh = felt_ring; fr_mi.material_override = gold_line; fr_mi.position = Vector3(0, 0.985, 0)
 	table_root.add_child(fr_mi)
 
-	var bowl := CylinderMesh.new(); bowl.top_radius = 0.66; bowl.bottom_radius = 0.74; bowl.height = 0.14
+	var bowl := CylinderMesh.new(); bowl.top_radius = 0.66; bowl.bottom_radius = 0.74; bowl.height = 0.14; bowl.radial_segments = 24; bowl.rings = 1
 	var bowl_mi := MeshInstance3D.new(); bowl_mi.mesh = bowl; bowl_mi.material_override = walnut_mat; bowl_mi.position = Vector3(0, 1.03, 0)
 	table_root.add_child(bowl_mi)
 
@@ -1031,7 +1062,7 @@ func _build_casino_centerpiece() -> void:
 	_roulette_wheel.position = Vector3(0, 1.11, 0)
 	table_root.add_child(_roulette_wheel)
 
-	var disk := CylinderMesh.new(); disk.top_radius = 0.56; disk.bottom_radius = 0.56; disk.height = 0.04
+	var disk := CylinderMesh.new(); disk.top_radius = 0.56; disk.bottom_radius = 0.56; disk.height = 0.04; disk.radial_segments = 24; disk.rings = 1
 	var disk_mi := MeshInstance3D.new(); disk_mi.mesh = disk; disk_mi.material_override = bronze_mat
 	_roulette_wheel.add_child(disk_mi)
 
@@ -1082,11 +1113,11 @@ func _build_casino_centerpiece() -> void:
 		bar_mi.position = Vector3(0, 0.065, 0); bar_mi.rotation.y = float(k) * PI * 0.25
 		_roulette_wheel.add_child(bar_mi)
 
-	var spire := CylinderMesh.new(); spire.top_radius = 0.018; spire.bottom_radius = 0.085; spire.height = 0.18
+	var spire := CylinderMesh.new(); spire.top_radius = 0.018; spire.bottom_radius = 0.085; spire.height = 0.18; spire.radial_segments = 12; spire.rings = 1
 	var spire_mi := MeshInstance3D.new(); spire_mi.mesh = spire; spire_mi.material_override = bronze_mat; spire_mi.position = Vector3(0, 0.11, 0)
 	_roulette_wheel.add_child(spire_mi)
 
-	var ball_mesh := SphereMesh.new(); ball_mesh.radius = 0.019; ball_mesh.height = 0.038
+	var ball_mesh := SphereMesh.new(); ball_mesh.radius = 0.019; ball_mesh.height = 0.038; ball_mesh.radial_segments = 12; ball_mesh.rings = 6
 	_roulette_ball = MeshInstance3D.new()
 	_roulette_ball.name = "RouletteBall"
 	_roulette_ball.mesh = ball_mesh
@@ -1099,11 +1130,11 @@ func _build_casino_centerpiece() -> void:
 	table_root.add_child(_roulette_chips_root)
 	update_roulette_chips({})
 
-	var stool_post := CylinderMesh.new(); stool_post.top_radius = 0.038; stool_post.bottom_radius = 0.045; stool_post.height = 0.64
-	var stool_base := CylinderMesh.new(); stool_base.top_radius = 0.22; stool_base.bottom_radius = 0.26; stool_base.height = 0.045
-	var foot_ring := TorusMesh.new(); foot_ring.inner_radius = 0.19; foot_ring.outer_radius = 0.215
-	var stool_shell := CylinderMesh.new(); stool_shell.top_radius = 0.255; stool_shell.bottom_radius = 0.235; stool_shell.height = 0.055
-	var stool_cushion := CylinderMesh.new(); stool_cushion.top_radius = 0.235; stool_cushion.bottom_radius = 0.250; stool_cushion.height = 0.085
+	var stool_post := CylinderMesh.new(); stool_post.top_radius = 0.038; stool_post.bottom_radius = 0.045; stool_post.height = 0.64; stool_post.radial_segments = 10; stool_post.rings = 1
+	var stool_base := CylinderMesh.new(); stool_base.top_radius = 0.22; stool_base.bottom_radius = 0.26; stool_base.height = 0.045; stool_base.radial_segments = 16; stool_base.rings = 1
+	var foot_ring := TorusMesh.new(); foot_ring.inner_radius = 0.19; foot_ring.outer_radius = 0.215; foot_ring.rings = 18; foot_ring.ring_segments = 8
+	var stool_shell := CylinderMesh.new(); stool_shell.top_radius = 0.255; stool_shell.bottom_radius = 0.235; stool_shell.height = 0.055; stool_shell.radial_segments = 18; stool_shell.rings = 1
+	var stool_cushion := CylinderMesh.new(); stool_cushion.top_radius = 0.235; stool_cushion.bottom_radius = 0.250; stool_cushion.height = 0.085; stool_cushion.radial_segments = 18; stool_cushion.rings = 1
 	var back_pad := BoxMesh.new(); back_pad.size = Vector3(0.42, 0.22, 0.08)
 
 	for s_idx in range(4):
@@ -1199,10 +1230,10 @@ func _build_casino_luxury_props() -> void:
 		})
 
 		var lever_pivot := Node3D.new(); lever_pivot.position = Vector3(0.52, 1.02, 0.0); slot.add_child(lever_pivot)
-		var lever := CylinderMesh.new(); lever.top_radius = 0.022; lever.bottom_radius = 0.022; lever.height = 0.52
+		var lever := CylinderMesh.new(); lever.top_radius = 0.022; lever.bottom_radius = 0.022; lever.height = 0.52; lever.radial_segments = 8; lever.rings = 1
 		var lmi := MeshInstance3D.new(); lmi.mesh = lever; lmi.material_override = chrome_mat; lmi.position = Vector3(0.0, 0.24, 0.05); lmi.rotation_degrees.x = -22.0
 		lever_pivot.add_child(lmi)
-		var knob := SphereMesh.new(); knob.radius = 0.055
+		var knob := SphereMesh.new(); knob.radius = 0.055; knob.height = 0.11; knob.radial_segments = 12; knob.rings = 6
 		var kmi := MeshInstance3D.new(); kmi.mesh = knob; kmi.material_override = cord_mat; kmi.position = Vector3(0.0, 0.50, 0.15)
 		lever_pivot.add_child(kmi)
 		_slot_levers.append(lever_pivot)
@@ -1211,10 +1242,10 @@ func _build_casino_luxury_props() -> void:
 		slb.set_meta("interact_id", slot_ids[idx_s]); slb.set_meta("interact_title", "Тягнути важіль (Однорукий бандит)")
 		slot.add_child(slb)
 
-	var post_mesh := CylinderMesh.new(); post_mesh.top_radius = 0.030; post_mesh.bottom_radius = 0.032; post_mesh.height = 0.90
-	var base_mesh := CylinderMesh.new(); base_mesh.top_radius = 0.13; base_mesh.bottom_radius = 0.15; base_mesh.height = 0.04
-	var cap_mesh := CylinderMesh.new(); cap_mesh.top_radius = 0.042; cap_mesh.bottom_radius = 0.034; cap_mesh.height = 0.045
-	var rope_mesh := CylinderMesh.new(); rope_mesh.top_radius = 0.020; rope_mesh.bottom_radius = 0.020; rope_mesh.height = 2.2
+	var post_mesh := CylinderMesh.new(); post_mesh.top_radius = 0.030; post_mesh.bottom_radius = 0.032; post_mesh.height = 0.90; post_mesh.radial_segments = 10; post_mesh.rings = 1
+	var base_mesh := CylinderMesh.new(); base_mesh.top_radius = 0.13; base_mesh.bottom_radius = 0.15; base_mesh.height = 0.04; base_mesh.radial_segments = 14; base_mesh.rings = 1
+	var cap_mesh := CylinderMesh.new(); cap_mesh.top_radius = 0.042; cap_mesh.bottom_radius = 0.034; cap_mesh.height = 0.045; cap_mesh.radial_segments = 10; cap_mesh.rings = 1
+	var rope_mesh := CylinderMesh.new(); rope_mesh.top_radius = 0.020; rope_mesh.bottom_radius = 0.020; rope_mesh.height = 2.2; rope_mesh.radial_segments = 8; rope_mesh.rings = 1
 	for side_x in [-2.65, 2.65]:
 		for pz in [6.0, 8.2]:
 			var pmi := MeshInstance3D.new(); pmi.mesh = post_mesh; pmi.material_override = bronze_mat; pmi.position = Vector3(side_x, 0.45, pz)
@@ -1238,20 +1269,20 @@ func _build_chandeliers() -> void:
 		ch.position = Vector3(0.0, 5.90, cz)
 		add_child(ch)
 
-		var rod := CylinderMesh.new(); rod.top_radius = 0.032; rod.bottom_radius = 0.032; rod.height = 1.25
+		var rod := CylinderMesh.new(); rod.top_radius = 0.032; rod.bottom_radius = 0.032; rod.height = 1.25; rod.radial_segments = 10; rod.rings = 1
 		var rmi := MeshInstance3D.new(); rmi.mesh = rod; rmi.material_override = bronze_mat; rmi.position = Vector3(0, -0.35, 0)
 		ch.add_child(rmi)
 
-		var ring_outer := TorusMesh.new(); ring_outer.inner_radius = 0.84; ring_outer.outer_radius = 0.92
+		var ring_outer := TorusMesh.new(); ring_outer.inner_radius = 0.84; ring_outer.outer_radius = 0.92; ring_outer.rings = 24; ring_outer.ring_segments = 8
 		var ro_mi := MeshInstance3D.new(); ro_mi.mesh = ring_outer; ro_mi.material_override = bronze_mat; ro_mi.position = Vector3(0, -0.92, 0)
 		ch.add_child(ro_mi)
 
-		var ring_inner := TorusMesh.new(); ring_inner.inner_radius = 0.42; ring_inner.outer_radius = 0.48
+		var ring_inner := TorusMesh.new(); ring_inner.inner_radius = 0.42; ring_inner.outer_radius = 0.48; ring_inner.rings = 20; ring_inner.ring_segments = 8
 		var ri_mi := MeshInstance3D.new(); ri_mi.mesh = ring_inner; ri_mi.material_override = bronze_mat; ri_mi.position = Vector3(0, -1.20, 0)
 		ch.add_child(ri_mi)
 
-		var shade_mesh := CylinderMesh.new(); shade_mesh.top_radius = 0.045; shade_mesh.bottom_radius = 0.075; shade_mesh.height = 0.15
-		var drop_mesh := CylinderMesh.new(); drop_mesh.top_radius = 0.016; drop_mesh.bottom_radius = 0.004; drop_mesh.height = 0.12
+		var shade_mesh := CylinderMesh.new(); shade_mesh.top_radius = 0.045; shade_mesh.bottom_radius = 0.075; shade_mesh.height = 0.15; shade_mesh.radial_segments = 12; shade_mesh.rings = 1
+		var drop_mesh := CylinderMesh.new(); drop_mesh.top_radius = 0.016; drop_mesh.bottom_radius = 0.004; drop_mesh.height = 0.12; drop_mesh.radial_segments = 8; drop_mesh.rings = 1
 		for b in range(8):
 			var a := float(b) * TAU / 8.0
 			var smi := MeshInstance3D.new(); smi.mesh = shade_mesh; smi.material_override = shade_mat
@@ -1502,14 +1533,61 @@ func _build_interior_reflection_probe() -> void:
 	add_child(_casino_probe)
 
 
+func _build_interior_gi_and_decals() -> void:
+	_casino_voxel_gi = VoxelGI.new()
+	_casino_voxel_gi.name = "CasinoVoxelGI"
+	_casino_voxel_gi.size = Vector3(44.0, 20.0, 22.0)
+	_casino_voxel_gi.position = Vector3(0.0, 3.8, 0.0)
+	_casino_voxel_gi.subdiv = VoxelGI.SUBDIV_64
+	var gi_data := VoxelGIData.new()
+	gi_data.interior = true
+	gi_data.energy = 0.88
+	gi_data.dynamic_range = 1.8
+	gi_data.propagation = 0.55
+	gi_data.bias = 1.4
+	gi_data.normal_bias = 0.9
+	_casino_voxel_gi.data = gi_data
+	add_child(_casino_voxel_gi)
+
+	if not ConfigManager.is_compatibility_renderer() and DisplayServer.get_name() != "headless" and RenderingServer.get_rendering_device() != null:
+		_casino_voxel_gi.call_deferred(&"bake", self)
+
+	var ent_img := Image.create(256, 128, false, Image.FORMAT_RGBA8)
+	for y: int in range(128):
+		for x: int in range(256):
+			var nx := (float(x) / 255.0 - 0.5) * 2.0
+			var ny := (float(y) / 127.0 - 0.5) * 2.0
+			var d := Vector2(nx * 0.72, ny).length()
+			var col := Color(0, 0, 0, 0)
+			if d < 0.94:
+				if d > 0.86 or (d > 0.74 and d < 0.79):
+					col = Color(0.86, 0.68, 0.24, 0.88)
+				else:
+					col = Color(0.32, 0.05, 0.07, 0.82)
+			ent_img.set_pixel(x, y, col)
+	ent_img.generate_mipmaps()
+	var ent_decal := Decal.new()
+	ent_decal.name = "CasinoEntranceDecal"
+	ent_decal.texture_albedo = ImageTexture.create_from_image(ent_img)
+	ent_decal.size = Vector3(4.2, 0.35, 2.2)
+	ent_decal.position = Vector3(0.0, 0.10, 8.2)
+	ent_decal.upper_fade = 0.08
+	ent_decal.lower_fade = 0.08
+	ent_decal.albedo_mix = 0.88
+	add_child(ent_decal)
+
+
 func _apply_lighting_quality() -> void:
 	var shadow_tier := int(ConfigManager.graphics.get("shadows", 3))
+	var preset_idx := int(ConfigManager.graphics.get("preset", 3))
 	var enable_arch_shadows := (shadow_tier >= 2)
 	for l: OmniLight3D in _arch_shadow_lights:
 		if is_instance_valid(l):
 			l.shadow_enabled = enable_arch_shadows
 	if is_instance_valid(_casino_probe):
 		_casino_probe.enable_shadows = enable_arch_shadows
+	if is_instance_valid(_casino_voxel_gi):
+		_casino_voxel_gi.visible = (not ConfigManager.is_compatibility_renderer()) and (preset_idx >= 2)
 
 
 func set_highlighted_painting(painting_id: String) -> void:

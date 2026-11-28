@@ -123,6 +123,7 @@ var _fallback_strings: Dictionary = {}
 
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	_init_ui_font()
 	load_available_languages()
 	load_config()

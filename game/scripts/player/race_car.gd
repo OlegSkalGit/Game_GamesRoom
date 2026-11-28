@@ -290,20 +290,31 @@ func _physics_process(delta: float) -> void:
 
 		var half_w := float(sp["width"]) * 0.5 - 1.25
 		_lat += lat_move
-		# Soft car-to-car bumper push against AI rivals
+		# Smooth hysteresis car-to-car bumper push against AI rivals (zero zero-crossing jitter)
+		var lat_nudge := 0.0
+		var contact_hit := false
 		for r in _track.rivals:
 			var ds_r := absf(wrapf(float(r["s"]) - _track_s, -t_len * 0.5, t_len * 0.5))
-			if ds_r < 3.6:
-				var dlat := _lat - float(r["lat"])
-				if absf(dlat) < 2.05:
-					var push_dir := 1.0 if dlat >= 0.0 else -1.0
-					_lat = move_toward(_lat, float(r["lat"]) + push_dir * 2.1, delta * 12.0)
-					_speed *= 0.992
+			if ds_r < 3.9:
+				var r_lat := float(r["lat"])
+				var dlat := _lat - r_lat
+				if absf(dlat) < 2.15:
+					contact_hit = true
+					var push_dir := signf(dlat) if absf(dlat) >= 0.25 else (-1.0 if r_lat >= 0.0 else 1.0)
+					var pen := (2.15 - absf(dlat)) / 2.15
+					lat_nudge += push_dir * (1.5 + pen * 3.2) * delta
+		if contact_hit:
+			_lat += clampf(lat_nudge, -4.2 * delta, 4.2 * delta)
+			_speed *= (1.0 - delta * 0.45)
 
 		if absf(_lat) > half_w:
 			_lat = signf(_lat) * half_w
 			_rel_yaw = move_toward(_rel_yaw, 0.0, delta * 8.0)
 			_speed *= (1.0 - delta * 0.35)
+
+		_track.player_track_s = _track_s
+		_track.player_lat = _lat
+		_track.player_speed = _speed
 
 		var sp_next: Dictionary = _track.sample_at_s(_track_s)
 		# Tabletop crest jump only launches fast cars (slow cars ride cleanly over the solid deck!)

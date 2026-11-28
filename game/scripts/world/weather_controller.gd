@@ -37,6 +37,7 @@ var _ferris_wheel
 var _casino_room
 var _road_bulb_mat: StandardMaterial3D
 var _last_hud_min: int = -1
+var god_rays_effect: GodRaysEffect
 
 
 func setup(p_sky: Sky3D, p_water_mat: ShaderMaterial, p_foliage_mats: Array[ShaderMaterial], p_player: Node3D) -> void:
@@ -289,6 +290,7 @@ func _process(delta: float) -> void:
 			var clear_vf := 0.00040 if _target_weather == WeatherType.CLEAR else clampf(_fog_dens * 2.0, 0.0010, 0.028)
 			if absf(sky3d.environment.volumetric_fog_density - clear_vf) > 0.00005:
 				sky3d.environment.volumetric_fog_density = clear_vf
+	_update_god_rays()
 
 	if water_material:
 		water_material.set_shader_parameter("wind_strength", _wind_strength)
@@ -321,3 +323,45 @@ func _process(delta: float) -> void:
 	if _lightning_flash > 0.0:
 		_lightning_flash = maxf(0.0, _lightning_flash - delta * 8.5)
 	_lightning_light.light_energy = _lightning_flash
+
+
+func _update_god_rays() -> void:
+	if god_rays_effect == null or sky3d == null or sky3d.sky == null:
+		return
+	var compat := ConfigManager.is_compatibility_renderer()
+	if compat or not bool(ConfigManager.graphics.get("glow", true)) or int(ConfigManager.graphics.get("preset", 3)) <= 0:
+		god_rays_effect.ray_strength = 0.0
+		return
+	var vp := get_viewport()
+	var cam := vp.get_camera_3d() if vp else null
+	if cam == null or cam.global_position.y < -0.6:
+		god_rays_effect.ray_strength = 0.0
+		return
+
+	var sun_dir: Vector3 = sky3d.sky._sun_transform.origin.normalized()
+	if sun_dir.y <= 0.015:
+		god_rays_effect.ray_strength = 0.0
+		return
+
+	var cam_fwd: Vector3 = -cam.global_transform.basis.z
+	var facing: float = cam_fwd.dot(sun_dir)
+	if facing <= 0.16:
+		god_rays_effect.ray_strength = 0.0
+		return
+
+	var far_sun: Vector3 = cam.global_position + sun_dir * 500.0
+	if cam.is_position_behind(far_sun):
+		god_rays_effect.ray_strength = 0.0
+		return
+
+	var vrect := vp.get_visible_rect().size
+	if vrect.x <= 8.0 or vrect.y <= 8.0:
+		return
+	god_rays_effect.sun_uv = cam.unproject_position(far_sun) / vrect
+
+	var face_w := clampf((facing - 0.16) / 0.52, 0.0, 1.0)
+	var alt_w := clampf((sun_dir.y - 0.015) / 0.10, 0.0, 1.0) * lerpf(1.0, 0.42, clampf((sun_dir.y - 0.35) / 0.55, 0.0, 1.0))
+	var weather_w := clampf(1.0 - _rain_amount * 0.62, 0.30, 1.0) * (1.0 + clampf(_fog_dens * 55.0, 0.0, 0.35))
+	god_rays_effect.ray_strength = clampf(0.95 * face_w * alt_w * weather_w, 0.0, 1.15)
+	var warm := clampf(1.0 - sun_dir.y * 1.4, 0.0, 1.0)
+	god_rays_effect.ray_color = Color(1.0, lerpf(0.95, 0.78, warm), lerpf(0.86, 0.48, warm), 1.0)

@@ -45,9 +45,12 @@ for %%F in (
     "scripts\world\casino_room.gd"
     "scripts\world\race_track.gd"
     "scripts\world\ferris_wheel.gd"
+    "scripts\world\god_rays_effect.gd"
     "scripts\ui\roulette_overlay.gd"
     "scripts\minigames\games\game_python3d.gd"
     "shaders\water_lake.gdshader"
+    "shaders\god_rays.glsl"
+    "shaders\interactive_plant.gdshader"
     "assets\textures\python3d\ground_quantum.png"
 ) do (
     if not exist "%GAME_DIR%\%%~F" set "NEED_REPO=1"
@@ -274,6 +277,9 @@ for %%F in (
     "textures\pbr\denim_fabric\rough.jpg"
     "models\fern_02\fern_02.gltf"
     "models\dead_tree_trunk\textures\dead_tree_trunk_arm_1k.jpg"
+    "models\shrub_01\shrub_01.gltf"
+    "models\shrub_01\textures\shrub_01_arm_1k.jpg"
+    "models\moss_01\moss_01.gltf"
     "models\animals\Fox.glb"
     "models\animals\animal_fox.glb"
 ) do (
@@ -299,6 +305,14 @@ for %%T in (forrest_ground_01 coast_sand_01 marble_01 wood_planks_dirt herringbo
 for %%M in (fern_02 flower_gazania grass_medium_01 boulder_01 dead_tree_trunk) do (
     call :FETCH "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/%%M/%%M_1k.gltf" "%ASSETS_DIR%\models\%%M\%%M.gltf" || exit /b 1
     call :FETCH "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/%%M/%%M.bin" "%ASSETS_DIR%\models\%%M\%%M.bin" || exit /b 1
+    call :FETCH "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/%%M/%%M_diff_1k.jpg" "%ASSETS_DIR%\models\%%M\textures\%%M_diff_1k.jpg" || exit /b 1
+    call :FETCH "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/%%M/%%M_nor_gl_1k.jpg" "%ASSETS_DIR%\models\%%M\textures\%%M_nor_gl_1k.jpg" || exit /b 1
+    call :FETCH "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/%%M/%%M_arm_1k.jpg" "%ASSETS_DIR%\models\%%M\textures\%%M_arm_1k.jpg" || exit /b 1
+)
+
+for %%M in (shrub_01 moss_01) do (
+    call :FETCH "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/%%M/%%M_1k.gltf" "%ASSETS_DIR%\models\%%M\%%M.gltf" || exit /b 1
+    call :FETCH "https://dl.polyhaven.org/file/ph-assets/Models/gltf/4k/%%M/%%M.bin" "%ASSETS_DIR%\models\%%M\%%M.bin" || exit /b 1
     call :FETCH "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/%%M/%%M_diff_1k.jpg" "%ASSETS_DIR%\models\%%M\textures\%%M_diff_1k.jpg" || exit /b 1
     call :FETCH "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/%%M/%%M_nor_gl_1k.jpg" "%ASSETS_DIR%\models\%%M\textures\%%M_nor_gl_1k.jpg" || exit /b 1
     call :FETCH "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/%%M/%%M_arm_1k.jpg" "%ASSETS_DIR%\models\%%M\textures\%%M_arm_1k.jpg" || exit /b 1
